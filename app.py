@@ -78,7 +78,7 @@ if st.button("🚫 선택 초기화"):
     st.session_state.routing_result = None
 
 # ────────────── 8. 라우팅 ──────────────
-MAPBOX_TOKEN = ""pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 if st.button("✅ 확인 (라우팅 실행)"):
     coords = st.session_state.selected_coords

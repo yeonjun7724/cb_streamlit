@@ -13,7 +13,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (자동 도착지)")
+st.title("📍 청주시 경유지 최적 경로 (자동 도착지 + 안전조건)")
 
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].dropna().unique().tolist()
@@ -26,7 +26,7 @@ with col1:
 with col2:
     waypoints = st.multiselect("🧭 경유지 선택", options, key="waypoints")
 
-# 선택 순서 리스트 (출발지 + 경유지)
+# 선택 순서 리스트
 selected_names = []
 if start:
     selected_names.append(start)
@@ -148,20 +148,22 @@ MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVyd
 
 with col1:
     if st.button("✅ 최적 경로 찾기 (도착지 자동)"):
+        # ✅ 안전 조건: 최소 출발지 + 경유지 ≥ 1
         if len(selected_coords) >= 2:
             coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
             url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{coords_str}"
             params = {
                 "geometries": "geojson",
                 "overview": "full",
-                "source": "first",   # 출발지 고정
-                # destination 제거: 자동!
+                "source": "first",
                 "roundtrip": "false",
                 "access_token": MAPBOX_TOKEN
             }
 
             response = requests.get(url, params=params)
             result = response.json()
+
+            st.write("📦 API 응답:", result)  # ✅ 디버깅 출력
 
             if not result or "trips" not in result or not result["trips"]:
                 st.error("❌ 최적화된 경로가 없습니다.")
@@ -170,7 +172,6 @@ with col1:
             route = result["trips"][0]["geometry"]["coordinates"]
             st.session_state["routing_result"] = route
 
-            # 👉 순서 추출
             waypoints_result = result["waypoints"]
             visited_order = sorted(
                 zip(waypoints_result, selected_names),
@@ -184,7 +185,7 @@ with col1:
 
             st.rerun()
         else:
-            st.warning("출발지와 경유지를 최소 1개 이상 선택하세요!")
+            st.warning("⚠️ 출발지와 경유지를 최소 1개 이상 선택해야 합니다!")
 
 with col2:
     if st.button("🚫 초기화"):

@@ -46,7 +46,7 @@ for lon, lat in selected_coords:
 st_folium(m, height=600, width=800)
 
 # Directions API
-MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 if st.button("✅ 확인 (라우팅)"):
     if len(selected_coords) >= 2:

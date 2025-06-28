@@ -13,7 +13,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (좌표 & 응답 디버깅 포함)")
+st.title("📍 청주시 경유지 최적 경로 (Snap-to-Roads + Optimization API)")
 
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].dropna().unique().tolist()
@@ -41,10 +41,6 @@ for name in selected_names:
         st.stop()
     row = filtered.iloc[0]
     selected_coords.append((row["lon"], row["lat"]))
-
-# 선택한 좌표 디버깅 출력
-if selected_coords:
-    st.write("🗺️ 선택된 좌표 (lon, lat):", selected_coords)
 
 # ────────────── 3. 지도 ──────────────
 m = folium.Map(
@@ -139,20 +135,37 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
 
 st_folium(m, height=600, width=800)
 
-# 순서 리스트 출력
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
 # ────────────── 5. 버튼 고정 ──────────────
 col1, col2 = st.columns([1, 1])
 
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+MAPBOX_TOKEN = "여기에_본인_MAPBOX_TOKEN"
 
 with col1:
-    if st.button("✅ 최적 경로 찾기 (도착지 자동)"):
+    if st.button("✅ Snap & 최적 경로 찾기"):
         if len(selected_coords) >= 2:
             coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
-            url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{coords_str}"
+
+            # 1️⃣ Snap-to-Roads
+            snap_url = f"https://api.mapbox.com/matching/v5/mapbox/driving/{coords_str}"
+            snap_params = {
+                "geometries": "geojson",
+                "access_token": MAPBOX_TOKEN
+            }
+            snap_resp = requests.get(snap_url, params=snap_params)
+            snap_result = snap_resp.json()
+
+            if "matchings" not in snap_result or not snap_result["matchings"]:
+                st.error("❌ Snap-to-Roads 실패. 좌표가 도로에 유효한지 확인하세요.")
+                st.stop()
+
+            snapped_coords = snap_result["matchings"][0]["geometry"]["coordinates"]
+
+            # 2️⃣ Optimization
+            opt_coords_str = ";".join([f"{lon},{lat}" for lon, lat in snapped_coords])
+            url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{opt_coords_str}"
             params = {
                 "geometries": "geojson",
                 "overview": "full",
@@ -160,17 +173,11 @@ with col1:
                 "roundtrip": "false",
                 "access_token": MAPBOX_TOKEN
             }
-
             response = requests.get(url, params=params)
             result = response.json()
 
-            st.write("📦 API 응답:", result)  # 디버깅 출력
-
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다.\n"
-                         "👉 좌표가 도로 네트워크에 유효한지 확인하세요.\n"
-                         "👉 너무 가까운 점은 안 됩니다.\n"
-                         "👉 Playground로 직접 확인해보세요.")
+                st.error("❌ 최적화된 경로가 없습니다. 좌표를 다시 확인하세요.")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]
@@ -185,11 +192,9 @@ with col1:
             st.session_state["ordered_names"] = ordered_names
 
             st.success(f"✅ 최적화된 경로 생성! 점 수: {len(route)}")
-            st.write("🔢 최적 방문 순서:", ordered_names)
-
             st.rerun()
         else:
-            st.warning("⚠️ 출발지 + 경유지를 최소 1개 이상 선택하세요!")
+            st.warning("⚠️ 출발지 + 경유지 최소 1개 필요!")
 
 with col2:
     if st.button("🚫 초기화"):

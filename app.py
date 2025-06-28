@@ -41,19 +41,17 @@ for wp in waypoints:
 # ────────────── 4. OSM 도로라인에서 Nearest Point로 스냅 ──────────────
 snapped_coords = []
 if selected_names:
-    # 선택한 포인트들을 Point로 만듦
     points = []
     for name in selected_names:
         row = gdf[gdf["name"] == name].iloc[0]
         points.append(Point(row["lon"], row["lat"]))
 
-    # OSM 도로 가져오기 (청주시 중심, 반경 1km)
+    # OSM 도로 가져오기 (반경 넉넉히)
     center_lat = boundary.geometry.centroid.y.mean()
     center_lon = boundary.geometry.centroid.x.mean()
-    G = ox.graph_from_point((center_lat, center_lon), dist=2000, network_type="drive")
+    G = ox.graph_from_point((center_lat, center_lon), dist=3000, network_type="drive")
     edges = ox.graph_to_gdfs(G, nodes=False)
 
-    # 각 포인트마다 Nearest 도로라인 찾기
     for pt in points:
         edges["distance"] = edges.geometry.distance(pt)
         nearest_line = edges.loc[edges["distance"].idxmin()]
@@ -61,6 +59,11 @@ if selected_names:
             nearest_line.geometry.project(pt)
         )
         snapped_coords.append((nearest_point.x, nearest_point.y))
+
+# 디버깅: 스냅된 좌표 출력
+if snapped_coords:
+    st.write("📌 스냅된 좌표 (lon, lat):", snapped_coords)
+    st.info("👉 Mapbox Playground에서 그대로 붙여서 확인해보세요!")
 
 # ────────────── 5. 지도 ──────────────
 m = folium.Map(
@@ -157,7 +160,6 @@ with col1:
             coords_str = ";".join([f"{lon},{lat}" for lon, lat in snapped_coords])
             profile = f"mapbox/{mode}"
 
-            # Snap 단계는 이미 OSM으로 보정했으니 바로 Optimization
             url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{coords_str}"
             params = {
                 "geometries": "geojson",
@@ -169,8 +171,10 @@ with col1:
             response = requests.get(url, params=params)
             result = response.json()
 
+            st.write("📦 Mapbox API 응답:", result)
+
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다. 도로망을 다시 확인하세요.")
+                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 좌표 확인하세요!")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]

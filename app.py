@@ -131,8 +131,10 @@ st_folium(m, height=600, width=800)
 
 # ────────────── 5. 초기화 ──────────────
 if st.button("🚫 초기화"):
-    if "routing_result" in st.session_state:
-        del st.session_state["routing_result"]
+    for key in ["routing_result", "start", "waypoints", "end"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.experimental_rerun()
 
 # ────────────── 6. Directions API ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
@@ -155,7 +157,7 @@ if st.button("✅ 확인 (라우팅 실행)"):
             route = result["routes"][0]["geometry"]["coordinates"]
             st.session_state["routing_result"] = route
             st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.warning(f"❌ 경로 없음: {result.get('message', 'Unknown error')}")
     else:

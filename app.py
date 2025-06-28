@@ -39,7 +39,11 @@ if end and end not in selected_names:
 
 selected_coords = []
 for name in selected_names:
-    row = gdf[gdf["name"] == name].iloc[0]
+    filtered = gdf[gdf["name"] == name]
+    if filtered.empty:
+        st.warning(f"⚠️ 선택한 '{name}' 포인트가 데이터에 없습니다.")
+        st.stop()
+    row = filtered.iloc[0]
     selected_coords.append((row["lon"], row["lat"]))
 
 st.write("✅ 선택 순서:", selected_names)
@@ -83,7 +87,7 @@ for _, row in gdf.iterrows():
         ).add_to(marker_cluster)
 
 # ────────────── 4. PolyLine + 화살표 + 순서 배지 ──────────────
-if "routing_result" in st.session_state:
+if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     num_segments = len(selected_coords) - 1
     colors = ["blue", "green", "orange", "purple", "red"]
@@ -153,12 +157,13 @@ if st.button("✅ 확인 (라우팅 실행)"):
         result = response.json()
         st.write("📦 Directions API 응답:", result)
 
-        if "routes" in result:
-            route = result["routes"][0]["geometry"]["coordinates"]
-            st.session_state["routing_result"] = route
-            st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
-            st.experimental_rerun()
-        else:
-            st.warning(f"❌ 경로 없음: {result.get('message', 'Unknown error')}")
+        if not result or "routes" not in result or not result["routes"]:
+            st.error("❌ Directions API 응답에 경로가 없습니다.")
+            st.stop()
+
+        route = result["routes"][0]["geometry"]["coordinates"]
+        st.session_state["routing_result"] = route
+        st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
+        st.experimental_rerun()
     else:
         st.warning("출발지와 도착지는 필수, 경유지는 선택!")

@@ -15,7 +15,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (OSM 도로 Nearest Point + Mapbox)")
+st.title("📍 청주시 경유지 최적 경로 (OSM 스냅 + Mapbox)")
 
 # ────────────── 2. 모드 선택 ──────────────
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
@@ -46,7 +46,7 @@ if selected_names:
         row = gdf[gdf["name"] == name].iloc[0]
         points.append(Point(row["lon"], row["lat"]))
 
-    # ✔️ OSM 도로 가져오기: network_type="all", dist=5000
+    # ✔️ OSM 도로 가져오기 (네트워크: all, 반경 넉넉히)
     center_lat = boundary.geometry.centroid.y.mean()
     center_lon = boundary.geometry.centroid.x.mean()
     G = ox.graph_from_point((center_lat, center_lon), dist=5000, network_type="all")
@@ -60,10 +60,10 @@ if selected_names:
         )
         snapped_coords.append((nearest_point.x, nearest_point.y))
 
-# 📌 디버그: 스냅된 좌표 출력
+# 📌 스냅된 좌표 Playground 확인용
 if snapped_coords:
     st.write("📌 스냅된 좌표 (lon, lat):", snapped_coords)
-    st.info("👉 Playground: https://docs.mapbox.com/playground/optimization/ 붙여서 바로 테스트!")
+    st.info("👉 Playground: https://docs.mapbox.com/playground/optimization/ 에 붙여서 테스트해보세요!")
 
 # ────────────── 5. 지도 ──────────────
 m = folium.Map(
@@ -71,6 +71,7 @@ m = folium.Map(
     zoom_start=12
 )
 
+# ✅ 청주시 행정경계만 GeoJSON으로 표시
 folium.GeoJson(
     boundary,
     name="청주시 경계",
@@ -84,7 +85,7 @@ folium.GeoJson(
 
 marker_cluster = MarkerCluster().add_to(m)
 
-# 스냅된 포인트 마커
+# 스냅된 포인트만 마커로 표시
 for idx, (lon, lat) in enumerate(snapped_coords, start=1):
     if idx == 1:
         icon_color = "green"
@@ -110,7 +111,7 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(marker_cluster)
 
-# 경로 표시
+# 경로 PolyLine + 화살표
 if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     ordered_names = st.session_state.get("ordered_names", selected_names)
@@ -122,6 +123,7 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
 
     for i in range(num_segments):
         seg_points = route[i * points_per_leg : (i + 1) * points_per_leg + 1]
+
         folium.PolyLine(
             [(lat, lon) for lon, lat in seg_points],
             color=colors[i % len(colors)],
@@ -144,12 +146,21 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
                 rotation=angle
             ).add_to(m)
 
+        mid_idx = len(seg_points) // 2
+        lon_mid, lat_mid = seg_points[mid_idx]
+        folium.map.Marker(
+            [lat_mid, lon_mid],
+            icon=folium.DivIcon(
+                html=f"""<div style="font-size: 10pt; color: white; background: {colors[i % len(colors)]}; border-radius:50%; padding:4px">{i+1}</div>"""
+            )
+        ).add_to(m)
+
 st_folium(m, height=600, width=800)
 
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
-# ────────────── 6. 버튼 ──────────────
+# ────────────── 6. 버튼 고정 ──────────────
 col1, col2 = st.columns([1, 1])
 
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
@@ -174,7 +185,7 @@ with col1:
             st.write("📦 Mapbox API 응답:", result)
 
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 스냅된 좌표를 직접 확인하세요!")
+                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 좌표 직접 확인하세요!")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]

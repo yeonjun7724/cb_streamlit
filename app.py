@@ -7,11 +7,15 @@ import requests
 import math
 
 # ────────────── 1. 데이터 ──────────────
+# 관광지 데이터 (점)
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
-st.title("📍 경유지 순서 + 구간별 색상 + 화살표 + 순서 배지 + 클러스터")
+# 청주시 행정경계 (폴리곤)
+boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
+
+st.title("📍 청주시 행정경계 + 경유지 경로 시각화")
 
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].dropna().unique().tolist()
@@ -48,9 +52,24 @@ for name in selected_names:
     selected_coords.append((row["lon"], row["lat"]))
 
 # ────────────── 3. 지도 ──────────────
-m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
+m = folium.Map(
+    location=[boundary.geometry.centroid.y.mean(), boundary.geometry.centroid.x.mean()],
+    zoom_start=12
+)
 
-# MarkerCluster
+# 1) 청주시 행정경계 배경 레이어
+folium.GeoJson(
+    boundary,
+    name="청주시 행정경계",
+    style_function=lambda x: {
+        "fillColor": "#ffffff",
+        "color": "#000000",
+        "weight": 1,
+        "fillOpacity": 0.1
+    }
+).add_to(m)
+
+# 2) MarkerCluster
 marker_cluster = MarkerCluster().add_to(m)
 
 # 선택된 포인트 마커
@@ -75,7 +94,7 @@ for idx, name in enumerate(selected_names, start=1):
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
-# 나머지 포인트 클러스터
+# 선택 안 된 포인트는 클러스터에
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(

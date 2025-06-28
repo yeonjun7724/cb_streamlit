@@ -15,7 +15,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (OSM 스냅 + Mapbox)")
+st.title("📍 청주시 경유지 최적 경로 (OSM 스냅 + 안전 체크 버전)")
 
 # ────────────── 2. 모드 선택 ──────────────
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
@@ -46,9 +46,15 @@ if selected_names:
         row = gdf[gdf["name"] == name].iloc[0]
         points.append(Point(row["lon"], row["lat"]))
 
-    # ✔️ OSM 도로 가져오기 (네트워크: all, 반경 넉넉히)
+    # ✔️ OSM 도로 가져오기 (네트워크: all, dist 넉넉히)
     center_lat = boundary.geometry.centroid.y.mean()
     center_lon = boundary.geometry.centroid.x.mean()
+
+    # NaN 안전 디폴트
+    if math.isnan(center_lat) or math.isnan(center_lon):
+        center_lat = 36.64  # 청주시 위도 예시
+        center_lon = 127.48 # 청주시 경도 예시
+
     G = ox.graph_from_point((center_lat, center_lon), dist=5000, network_type="all")
     edges = ox.graph_to_gdfs(G, nodes=False)
 
@@ -60,10 +66,14 @@ if selected_names:
         )
         snapped_coords.append((nearest_point.x, nearest_point.y))
 
-# 📌 스냅된 좌표 Playground 확인용
+# ✔️ snapped_coords 안전 필터
+if not snapped_coords:
+    st.warning("⚠️ 스냅된 좌표가 없습니다. 출발지/경유지를 선택했는지 확인하세요.")
+
+# Playground 디버그 출력
 if snapped_coords:
     st.write("📌 스냅된 좌표 (lon, lat):", snapped_coords)
-    st.info("👉 Playground: https://docs.mapbox.com/playground/optimization/ 에 붙여서 테스트해보세요!")
+    st.info("👉 Playground: https://docs.mapbox.com/playground/optimization/ 에 붙여서 테스트!")
 
 # ────────────── 5. 지도 ──────────────
 m = folium.Map(
@@ -111,7 +121,7 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(marker_cluster)
 
-# 경로 PolyLine + 화살표
+# 경로 PolyLine + 화살표 + 순서배지
 if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     ordered_names = st.session_state.get("ordered_names", selected_names)
@@ -185,7 +195,7 @@ with col1:
             st.write("📦 Mapbox API 응답:", result)
 
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 좌표 직접 확인하세요!")
+                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 좌표를 직접 확인하세요!")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]

@@ -15,7 +15,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (OSM 도로라인 Nearest Point + Mapbox)")
+st.title("📍 청주시 경유지 최적 경로 (OSM 도로 Nearest Point + Mapbox)")
 
 # ────────────── 2. 모드 선택 ──────────────
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
@@ -38,7 +38,7 @@ for wp in waypoints:
     if wp != start:
         selected_names.append(wp)
 
-# ────────────── 4. OSM 도로라인에서 Nearest Point로 스냅 ──────────────
+# ────────────── 4. OSM 도로 Nearest Point 스냅 ──────────────
 snapped_coords = []
 if selected_names:
     points = []
@@ -46,10 +46,10 @@ if selected_names:
         row = gdf[gdf["name"] == name].iloc[0]
         points.append(Point(row["lon"], row["lat"]))
 
-    # OSM 도로 가져오기 (반경 넉넉히)
+    # ✔️ OSM 도로 가져오기: network_type="all", dist=5000
     center_lat = boundary.geometry.centroid.y.mean()
     center_lon = boundary.geometry.centroid.x.mean()
-    G = ox.graph_from_point((center_lat, center_lon), dist=3000, network_type="drive")
+    G = ox.graph_from_point((center_lat, center_lon), dist=5000, network_type="all")
     edges = ox.graph_to_gdfs(G, nodes=False)
 
     for pt in points:
@@ -60,10 +60,10 @@ if selected_names:
         )
         snapped_coords.append((nearest_point.x, nearest_point.y))
 
-# 디버깅: 스냅된 좌표 출력
+# 📌 디버그: 스냅된 좌표 출력
 if snapped_coords:
     st.write("📌 스냅된 좌표 (lon, lat):", snapped_coords)
-    st.info("👉 Mapbox Playground에서 그대로 붙여서 확인해보세요!")
+    st.info("👉 Playground: https://docs.mapbox.com/playground/optimization/ 붙여서 바로 테스트!")
 
 # ────────────── 5. 지도 ──────────────
 m = folium.Map(
@@ -174,7 +174,7 @@ with col1:
             st.write("📦 Mapbox API 응답:", result)
 
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 좌표 확인하세요!")
+                st.error("❌ 최적화된 경로가 없습니다.\n📌 Playground에서 스냅된 좌표를 직접 확인하세요!")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]

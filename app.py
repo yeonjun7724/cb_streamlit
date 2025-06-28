@@ -13,12 +13,8 @@ gdf["lat"] = gdf.geometry.y
 
 st.title("📍 경유지 순서 + 구간별 색상 + 화살표 + 순서 배지 + 클러스터")
 
-# 데이터 점검
-st.write("✅ 데이터 로드됨:", gdf.head())
-
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].dropna().unique().tolist()
-st.write("✅ 선택 옵션:", options)
 
 col1, col2, col3 = st.columns(3)
 
@@ -41,19 +37,15 @@ for wp in waypoints:
 if end and end not in selected_names:
     selected_names.append(end)
 
-st.write("✅ 선택된 순서:", selected_names)
-
-# 안전하게 포인트 가져오기
+# 안전한 포인트 추출
 selected_coords = []
 for name in selected_names:
     filtered = gdf[gdf["name"] == name]
     if filtered.empty:
-        st.error(f"❌ 선택한 '{name}' 데이터가 없습니다. 데이터 확인 필요!")
+        st.error(f"❌ 선택한 '{name}' 데이터가 없습니다.")
         st.stop()
     row = filtered.iloc[0]
     selected_coords.append((row["lon"], row["lat"]))
-
-st.write("✅ 선택된 좌표:", selected_coords)
 
 # ────────────── 3. 지도 ──────────────
 m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
@@ -98,8 +90,6 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     num_segments = len(selected_coords) - 1
     colors = ["blue", "green", "orange", "purple", "red"]
-
-    st.write("✅ 저장된 경로 길이:", len(route))
 
     points_per_leg = len(route) // num_segments
     for i in range(num_segments):
@@ -161,10 +151,9 @@ if st.button("✅ 확인 (라우팅 실행)"):
 
         response = requests.get(url, params=params)
         result = response.json()
-        st.write("📦 Directions API 응답:", result)
 
         if not result or "routes" not in result or not result["routes"]:
-            st.error("❌ Directions API 응답에 routes 없음. 확인 필요!")
+            st.error("❌ Directions API 응답에 routes가 없습니다.")
             st.stop()
 
         route = result["routes"][0]["geometry"]["coordinates"]

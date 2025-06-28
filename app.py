@@ -181,4 +181,4 @@ if st.button("✅ 확인 (라우팅 실행)"):
         st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
         st.rerun()
     else:
-        st.warning("출발지와 도착지는 필수
+        st.warning("출발지와 도착지는 필수, 경유지는 선택!")

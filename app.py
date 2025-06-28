@@ -10,7 +10,7 @@ gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
-st.title("📍 경유지 순서 + 화살표 + 순서 Marker")
+st.title("📍 경유지 순서 + 구간별 색상 + 화살표 + 순서 배지")
 
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].tolist()
@@ -18,24 +18,24 @@ options = gdf["name"].tolist()
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    start = st.selectbox("🏁 출발지", options, key="start")
+    start = st.selectbox("🏁 출발지 선택", options, key="start")
 
 with col2:
-    waypoints = st.multiselect("🧭 경유지 (순서대로)", options, key="waypoints")
+    waypoints = st.multiselect("🧭 경유지 선택 (순서대로)", options, key="waypoints")
 
 with col3:
-    end = st.selectbox("🏁 도착지", options, key="end")
+    end = st.selectbox("🏁 도착지 선택", options, key="end")
 
-# 선택 순서
+# 순서 리스트
 selected_names = []
-if start: selected_names.append(start)
+if start:
+    selected_names.append(start)
 for wp in waypoints:
     if wp != start and wp != end:
         selected_names.append(wp)
 if end and end not in selected_names:
     selected_names.append(end)
 
-# 좌표 리스트
 selected_coords = []
 for name in selected_names:
     row = gdf[gdf["name"] == name].iloc[0]
@@ -46,7 +46,7 @@ st.write("✅ 선택 순서:", selected_names)
 # ────────────── 3. 지도 ──────────────
 m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
 
-# 포인트: 순서에 따라 아이콘 다르게
+# 선택된 포인트 마커 (순서별)
 for idx, name in enumerate(selected_names, start=1):
     row = gdf[gdf["name"] == name].iloc[0]
     lat, lon = row["lat"], row["lon"]
@@ -78,46 +78,61 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(m)
 
-# PolyLine 있으면 추가 + 화살표
+# ────────────── 4. PolyLine + 화살표 + 순서 배지 ──────────────
 if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
+    num_segments = len(selected_coords) - 1
+    colors = ["blue", "green", "orange", "purple", "red"]
 
-    folium.PolyLine(
-        [(lat, lon) for lon, lat in route],
-        color="blue",
-        weight=5,
-        opacity=0.8
-    ).add_to(m)
+    # 구간별 자르기
+    points_per_leg = len(route) // num_segments
+    for i in range(num_segments):
+        seg_points = route[i * points_per_leg : (i + 1) * points_per_leg + 1]
+        folium.PolyLine(
+            [(lat, lon) for lon, lat in seg_points],
+            color=colors[i % len(colors)],
+            weight=5,
+            opacity=0.8
+        ).add_to(m)
 
-    # 화살표: 일정 간격마다
-    for i in range(0, len(route) - 1, max(1, len(route) // 10)):
-        lon1, lat1 = route[i]
-        lon2, lat2 = route[i + 1]
+        # 화살표 더 촘촘하게
+        for j in range(0, len(seg_points) - 1, max(1, len(seg_points) // 8)):
+            lon1, lat1 = seg_points[j]
+            lon2, lat2 = seg_points[j + 1]
+            dx = lon2 - lon1
+            dy = lat2 - lat1
+            angle = math.degrees(math.atan2(dy, dx))
 
-        dx = lon2 - lon1
-        dy = lat2 - lat1
-        angle = math.degrees(math.atan2(dy, dx))
+            folium.RegularPolygonMarker(
+                location=[lat2, lon2],
+                number_of_sides=3,
+                radius=8,
+                color=colors[i % len(colors)],
+                fill_color=colors[i % len(colors)],
+                rotation=angle
+            ).add_to(m)
 
-        folium.RegularPolygonMarker(
-            location=[lat2, lon2],
-            number_of_sides=3,
-            radius=8,
-            color="blue",
-            fill_color="blue",
-            rotation=angle
+        # 선 위 순서 DivIcon
+        mid_idx = len(seg_points) // 2
+        lon_mid, lat_mid = seg_points[mid_idx]
+        folium.map.Marker(
+            [lat_mid, lon_mid],
+            icon=folium.DivIcon(
+                html=f"""<div style="font-size: 10pt; color: white; background: {colors[i % len(colors)]}; border-radius:50%; padding:4px">{i+1}</div>"""
+            )
         ).add_to(m)
 
 st_folium(m, height=600, width=800)
 
-# ────────────── 4. 초기화 ──────────────
+# ────────────── 5. 초기화 ──────────────
 if st.button("🚫 초기화"):
     if "routing_result" in st.session_state:
         del st.session_state["routing_result"]
 
-# ────────────── 5. Directions API ──────────────
+# ────────────── 6. Directions API ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
-if st.button("✅ 확인 (라우팅)"):
+if st.button("✅ 확인 (라우팅 실행)"):
     if len(selected_coords) >= 2:
         coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
         url = f"https://api.mapbox.com/directions/v5/mapbox/driving/{coords_str}"
@@ -139,4 +154,4 @@ if st.button("✅ 확인 (라우팅)"):
         else:
             st.warning(f"❌ 경로 없음: {result.get('message', 'Unknown error')}")
     else:
-        st.warning("출발지와 도착지를 선택하세요. 경유지는 선택해도 되고 안 해도 됩니다.")
+        st.warning("출발지와 도착지는 필수, 경유지는 선택!")

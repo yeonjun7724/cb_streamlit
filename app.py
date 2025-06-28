@@ -7,10 +7,12 @@ import requests
 import math
 
 # ────────────── 1. 데이터 ──────────────
+# 관광지 점 데이터
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
+# 청주시 행정경계 (EPSG:5179 → 4326)
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
 st.title("📍 청주시 행정경계 + 경유지 경로 시각화")
@@ -29,6 +31,7 @@ with col2:
 with col3:
     end = st.selectbox("🏁 도착지 선택", options, key="end")
 
+# 선택 순서 리스트
 selected_names = []
 if start:
     selected_names.append(start)
@@ -38,6 +41,7 @@ for wp in waypoints:
 if end and end not in selected_names:
     selected_names.append(end)
 
+# 안전한 포인트 추출
 selected_coords = []
 for name in selected_names:
     filtered = gdf[gdf["name"] == name]
@@ -53,6 +57,7 @@ m = folium.Map(
     zoom_start=12
 )
 
+# 1) 청주시 행정경계 GeoJson 배경
 folium.GeoJson(
     boundary,
     name="청주시 행정경계",
@@ -64,8 +69,10 @@ folium.GeoJson(
     }
 ).add_to(m)
 
+# 2) MarkerCluster
 marker_cluster = MarkerCluster().add_to(m)
 
+# 선택된 포인트 마커
 for idx, name in enumerate(selected_names, start=1):
     row = gdf[gdf["name"] == name].iloc[0]
     lat, lon = row["lat"], row["lon"]
@@ -87,6 +94,7 @@ for idx, name in enumerate(selected_names, start=1):
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
+# 선택되지 않은 나머지 포인트 클러스터에 추가
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(
@@ -96,6 +104,7 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(marker_cluster)
 
+# ────────────── 4. PolyLine + 더 예쁜 화살표 + 순서 배지 ──────────────
 if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     num_segments = len(selected_coords) - 1
@@ -121,7 +130,7 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
             folium.RegularPolygonMarker(
                 location=[lat2, lon2],
                 number_of_sides=3,
-                radius=8,
+                radius=12,  # ✅ 더 크게
                 color=colors[i % len(colors)],
                 fill_color=colors[i % len(colors)],
                 rotation=angle
@@ -136,13 +145,15 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
             )
         ).add_to(m)
 
+# 지도 출력
 st_folium(m, height=600, width=800)
 
-# ────────────── 4. 사이드바에 항상 버튼 고정 ──────────────
-with st.sidebar:
-    MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+# ────────────── 5. 지도 아래 버튼 항상 고정 ──────────────
+col1, col2 = st.columns([1, 1])
 
+with col1:
     if st.button("✅ 라우팅 실행"):
+        MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
         if len(selected_coords) >= 2:
             coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
             url = f"https://api.mapbox.com/directions/v5/mapbox/driving/{coords_str}"
@@ -151,6 +162,7 @@ with st.sidebar:
                 "overview": "full",
                 "access_token": MAPBOX_TOKEN
             }
+
             response = requests.get(url, params=params)
             result = response.json()
 
@@ -163,8 +175,9 @@ with st.sidebar:
             st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
             st.rerun()
         else:
-            st.warning("출발지와 도착지를 선택해야 합니다!")
+            st.warning("출발지와 도착지를 선택해야 경로를 생성할 수 있습니다.")
 
+with col2:
     if st.button("🚫 초기화"):
         for key in ["routing_result", "start", "waypoints", "end"]:
             if key in st.session_state:

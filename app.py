@@ -13,7 +13,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (모드 선택 + Snap-to-Roads)")
+st.title("📍 청주시 경유지 최적 경로 (모드 선택 + Snap-to-Roads + Fallback)")
 
 # ────────────── 2. 모드 선택 ──────────────
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
@@ -161,8 +161,16 @@ with col1:
             snap_resp = requests.get(snap_url, params=snap_params)
             snap_result = snap_resp.json()
 
+            # Fallback: driving 실패 시 walking 재시도
+            if ("matchings" not in snap_result or not snap_result["matchings"]) and mode == "driving":
+                st.warning("🚗 Driving 모드 Snap 실패! Walking으로 재시도합니다.")
+                profile = "mapbox/walking"
+                snap_url = f"https://api.mapbox.com/matching/v5/{profile}/{coords_str}"
+                snap_resp = requests.get(snap_url, params=snap_params)
+                snap_result = snap_resp.json()
+
             if "matchings" not in snap_result or not snap_result["matchings"]:
-                st.error(f"❌ Snap-to-Roads 실패! '{mode}' 모드로 스냅 불가. 포인트를 도로망 위로 조정하세요.")
+                st.error(f"❌ Snap-to-Roads 실패! '{profile}' 모드로도 스냅 불가. 도로망 위로 포인트를 조정하세요.")
                 st.stop()
 
             snapped_coords = snap_result["matchings"][0]["geometry"]["coordinates"]

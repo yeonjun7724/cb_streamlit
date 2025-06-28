@@ -1,6 +1,8 @@
 import geopandas as gpd
 import folium
 from folium.plugins import MarkerCluster
+from shapely.geometry import Point
+import osmnx as ox
 from streamlit_folium import st_folium
 import streamlit as st
 import requests
@@ -13,7 +15,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (모드 선택 + Snap-to-Roads + Fallback)")
+st.title("📍 청주시 경유지 최적 경로 (OSM 도로라인 Nearest Point + Mapbox)")
 
 # ────────────── 2. 모드 선택 ──────────────
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
@@ -36,24 +38,39 @@ for wp in waypoints:
     if wp != start:
         selected_names.append(wp)
 
-selected_coords = []
-for name in selected_names:
-    filtered = gdf[gdf["name"] == name]
-    if filtered.empty:
-        st.error(f"❌ 선택한 '{name}' 데이터가 없습니다.")
-        st.stop()
-    row = filtered.iloc[0]
-    selected_coords.append((row["lon"], row["lat"]))
+# ────────────── 4. OSM 도로라인에서 Nearest Point로 스냅 ──────────────
+snapped_coords = []
+if selected_names:
+    # 선택한 포인트들을 Point로 만듦
+    points = []
+    for name in selected_names:
+        row = gdf[gdf["name"] == name].iloc[0]
+        points.append(Point(row["lon"], row["lat"]))
 
-# ────────────── 4. 지도 ──────────────
+    # OSM 도로 가져오기 (청주시 중심, 반경 1km)
+    center_lat = boundary.geometry.centroid.y.mean()
+    center_lon = boundary.geometry.centroid.x.mean()
+    G = ox.graph_from_point((center_lat, center_lon), dist=2000, network_type="drive")
+    edges = ox.graph_to_gdfs(G, nodes=False)
+
+    # 각 포인트마다 Nearest 도로라인 찾기
+    for pt in points:
+        edges["distance"] = edges.geometry.distance(pt)
+        nearest_line = edges.loc[edges["distance"].idxmin()]
+        nearest_point = nearest_line.geometry.interpolate(
+            nearest_line.geometry.project(pt)
+        )
+        snapped_coords.append((nearest_point.x, nearest_point.y))
+
+# ────────────── 5. 지도 ──────────────
 m = folium.Map(
-    location=[boundary.geometry.centroid.y.mean(), boundary.geometry.centroid.x.mean()],
+    location=[center_lat, center_lon],
     zoom_start=12
 )
 
 folium.GeoJson(
     boundary,
-    name="청주시 행정경계",
+    name="청주시 경계",
     style_function=lambda x: {
         "fillColor": "#ffffff",
         "color": "#000000",
@@ -64,10 +81,8 @@ folium.GeoJson(
 
 marker_cluster = MarkerCluster().add_to(m)
 
-for idx, name in enumerate(selected_names, start=1):
-    row = gdf[gdf["name"] == name].iloc[0]
-    lat, lon = row["lat"], row["lon"]
-
+# 스냅된 포인트 마커
+for idx, (lon, lat) in enumerate(snapped_coords, start=1):
     if idx == 1:
         icon_color = "green"
         icon_name = "play"
@@ -77,11 +92,12 @@ for idx, name in enumerate(selected_names, start=1):
 
     folium.Marker(
         location=[lat, lon],
-        popup=f"{idx}. {name}",
-        tooltip=f"{idx}. {name}",
+        popup=f"{idx}. {selected_names[idx-1]}",
+        tooltip=f"{idx}. {selected_names[idx-1]}",
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
+# 나머지 포인트
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(
@@ -91,24 +107,22 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(marker_cluster)
 
-# ────────────── 5. 구간별 색상 + 화살표 ──────────────
+# 경로 표시
 if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     ordered_names = st.session_state.get("ordered_names", selected_names)
 
     num_segments = len(ordered_names) - 1
-    colors = ["blue", "green", "orange", "purple", "red", "pink", "brown", "black"]
+    colors = ["blue", "green", "orange", "purple", "red", "pink"]
 
     points_per_leg = max(1, len(route) // max(1, num_segments))
 
     for i in range(num_segments):
         seg_points = route[i * points_per_leg : (i + 1) * points_per_leg + 1]
-
         folium.PolyLine(
             [(lat, lon) for lon, lat in seg_points],
             color=colors[i % len(colors)],
-            weight=5,
-            opacity=0.8
+            weight=5
         ).add_to(m)
 
         for j in range(0, len(seg_points) - 1, max(1, len(seg_points) // 8)):
@@ -121,63 +135,30 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
             folium.RegularPolygonMarker(
                 location=[lat2, lon2],
                 number_of_sides=3,
-                radius=12,
+                radius=10,
                 color=colors[i % len(colors)],
                 fill_color=colors[i % len(colors)],
                 rotation=angle
             ).add_to(m)
-
-        mid_idx = len(seg_points) // 2
-        lon_mid, lat_mid = seg_points[mid_idx]
-        folium.map.Marker(
-            [lat_mid, lon_mid],
-            icon=folium.DivIcon(
-                html=f"""<div style="font-size: 10pt; color: white; background: {colors[i % len(colors)]}; border-radius:50%; padding:4px">{i+1}</div>"""
-            )
-        ).add_to(m)
 
 st_folium(m, height=600, width=800)
 
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
-# ────────────── 6. 버튼 고정 ──────────────
+# ────────────── 6. 버튼 ──────────────
 col1, col2 = st.columns([1, 1])
 
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 with col1:
-    if st.button("✅ Snap & 최적 경로 찾기"):
-        if len(selected_coords) >= 2:
-            coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
+    if st.button("✅ OSM Snap & 최적 경로 찾기"):
+        if len(snapped_coords) >= 2:
+            coords_str = ";".join([f"{lon},{lat}" for lon, lat in snapped_coords])
             profile = f"mapbox/{mode}"
 
-            # ✔ Snap 단계
-            snap_url = f"https://api.mapbox.com/matching/v5/{profile}/{coords_str}"
-            snap_params = {
-                "geometries": "geojson",
-                "access_token": MAPBOX_TOKEN
-            }
-            snap_resp = requests.get(snap_url, params=snap_params)
-            snap_result = snap_resp.json()
-
-            # Fallback: driving 실패 시 walking 재시도
-            if ("matchings" not in snap_result or not snap_result["matchings"]) and mode == "driving":
-                st.warning("🚗 Driving 모드 Snap 실패! Walking으로 재시도합니다.")
-                profile = "mapbox/walking"
-                snap_url = f"https://api.mapbox.com/matching/v5/{profile}/{coords_str}"
-                snap_resp = requests.get(snap_url, params=snap_params)
-                snap_result = snap_resp.json()
-
-            if "matchings" not in snap_result or not snap_result["matchings"]:
-                st.error(f"❌ Snap-to-Roads 실패! '{profile}' 모드로도 스냅 불가. 도로망 위로 포인트를 조정하세요.")
-                st.stop()
-
-            snapped_coords = snap_result["matchings"][0]["geometry"]["coordinates"]
-
-            # ✔ 최적화
-            opt_coords_str = ";".join([f"{lon},{lat}" for lon, lat in snapped_coords])
-            url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{opt_coords_str}"
+            # Snap 단계는 이미 OSM으로 보정했으니 바로 Optimization
+            url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{coords_str}"
             params = {
                 "geometries": "geojson",
                 "overview": "full",
@@ -206,7 +187,7 @@ with col1:
             st.success(f"✅ 최적화된 경로 생성! 점 수: {len(route)}")
             st.rerun()
         else:
-            st.warning("⚠️ 출발지와 경유지를 최소 1개 이상 선택하세요!")
+            st.warning("출발지와 경유지를 최소 1개 이상 선택하세요!")
 
 with col2:
     if st.button("🚫 초기화"):

@@ -3,87 +3,75 @@ import folium
 from streamlit_folium import st_folium
 import streamlit as st
 import requests
-from scipy.spatial import cKDTree
 
-# ────────────── 1. 데이터 로딩 ──────────────
+# ────────────── 1. 데이터 ──────────────
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
-points_array = gdf[["lon", "lat"]].values
-tree = cKDTree(points_array)
+st.title("📍 드롭다운으로 포인트 순서 선택 → Mapbox 라우팅")
 
-if "selected_coords" not in st.session_state:
-    st.session_state.selected_coords = []
-if "routing_result" not in st.session_state:
-    st.session_state.routing_result = None
+# ────────────── 2. 선택
+options = gdf.index.tolist()
 
-st.title("📍 Shapefile 포인트 선택 → Mapbox 라우팅 (디자인 개선)")
+# 순차적으로 선택 예시
+stop1 = st.selectbox("① 출발지 선택", options, key="stop1")
+stop2 = st.selectbox("② 경유지 선택 (옵션)", options, key="stop2")
+stop3 = st.selectbox("③ 도착지 선택", options, key="stop3")
 
-# ────────────── 2. 지도 생성 ──────────────
+# 중복 제거하고 순서 유지
+selected_ids = []
+for stop in [stop1, stop2, stop3]:
+    if stop not in selected_ids:
+        selected_ids.append(stop)
+
+selected_coords = [(gdf.loc[idx, "lon"], gdf.loc[idx, "lat"]) for idx in selected_ids]
+st.write("✅ 선택된 순서:", selected_coords)
+
+# ────────────── 3. 지도 생성
 m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
 
-# ────────────── 3. 마커 렌더링 ──────────────
+# 모든 포인트: 빨간 CircleMarker
 for idx, row in gdf.iterrows():
-    point = (row["lon"], row["lat"])
-    if point in st.session_state.selected_coords:
-        # 선택된 포인트: 초록 핀 + ok-sign
-        folium.Marker(
-            location=[row["lat"], row["lon"]],
-            popup=f"ID: {idx}",
-            tooltip="✅ 선택됨",
-            icon=folium.Icon(color="green", icon="ok-sign", prefix="glyphicon")
-        ).add_to(m)
-    else:
-        # 기본 포인트: 빨간 핀 + map-marker
-        folium.Marker(
-            location=[row["lat"], row["lon"]],
-            popup=f"ID: {idx}",
-            tooltip=f"ID: {idx}",
-            icon=folium.Icon(color="red", icon="map-marker", prefix="glyphicon")
-        ).add_to(m)
+    folium.CircleMarker(
+        location=[row["lat"], row["lon"]],
+        radius=5,
+        color="red",
+        fill=True,
+        fill_opacity=0.7,
+        popup=f"ID: {idx}"
+    ).add_to(m)
 
-# ────────────── 4. 경로 PolyLine 있으면 추가 ──────────────
-if st.session_state.routing_result:
+# 선택된 포인트는 초록색
+for lon, lat in selected_coords:
+    folium.Marker(
+        location=[lat, lon],
+        icon=folium.Icon(color="green", icon="ok-sign", prefix="glyphicon")
+    ).add_to(m)
+
+# 라우팅 결과 PolyLine 있으면 그리기
+if "routing_result" in st.session_state:
+    route = st.session_state["routing_result"]
     folium.PolyLine(
-        [(lat, lon) for lon, lat in st.session_state.routing_result],
+        [(lat, lon) for lon, lat in route],
         color="blue",
         weight=4,
         opacity=0.8
     ).add_to(m)
 
-# ────────────── 5. 지도 띄우기 ──────────────
-output = st_folium(m, height=600, width=800)
+st_folium(m, height=600, width=800)
 
-# ────────────── 6. 클릭 감지 + KDTree ──────────────
-if output["last_clicked"] is not None:
-    clicked_lon = output["last_clicked"]["lng"]
-    clicked_lat = output["last_clicked"]["lat"]
-
-    dist, idx = tree.query([clicked_lon, clicked_lat])
-
-    if dist <= 0.001:
-        closest = tuple(points_array[idx])
-        if closest not in st.session_state.selected_coords:
-            st.session_state.selected_coords.append(closest)
-            st.success(f"✅ 선택된 포인트 추가: {closest}")
-    else:
-        st.warning("❌ 너무 멀리 클릭했습니다.")
-
-st.write("👉 현재 선택된 포인트:", st.session_state.selected_coords)
-
-# ────────────── 7. 초기화 ──────────────
+# ────────────── 4. 초기화
 if st.button("🚫 선택 초기화"):
-    st.session_state.selected_coords = []
-    st.session_state.routing_result = None
+    if "routing_result" in st.session_state:
+        del st.session_state["routing_result"]
 
-# ────────────── 8. 라우팅 ──────────────
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+# ────────────── 5. Directions API
+MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"
 
 if st.button("✅ 확인 (라우팅 실행)"):
-    coords = st.session_state.selected_coords
-    if len(coords) >= 2:
-        coords_str = ";".join([f"{lon},{lat}" for lon, lat in coords])
+    if len(selected_coords) >= 2:
+        coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
         url = f"https://api.mapbox.com/directions/v5/mapbox/driving/{coords_str}"
         params = {
             "geometries": "geojson",
@@ -97,10 +85,10 @@ if st.button("✅ 확인 (라우팅 실행)"):
 
         if "routes" in result:
             route = result["routes"][0]["geometry"]["coordinates"]
-            st.session_state.routing_result = route
+            st.session_state["routing_result"] = route
             st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
             st.rerun()
         else:
-            st.warning(f"❌ 경로 생성 실패: {result.get('message', 'Unknown error')}")
+            st.warning(f"❌ 경로 없음: {result.get('message', 'Unknown error')}")
     else:
-        st.warning("2개 이상 선택해야 경로 생성됩니다.")
+        st.warning("출발지와 도착지를 반드시 선택해야 합니다.")

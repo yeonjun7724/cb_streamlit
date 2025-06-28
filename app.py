@@ -7,12 +7,12 @@ import requests
 import math
 
 # ────────────── 1. 데이터 ──────────────
-# 관광지 데이터 (점)
+# 관광지 포인트
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
-# 청주시 행정경계 (폴리곤)
+# 청주시 행정경계 (EPSG:5179 → 4326)
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
 st.title("📍 청주시 행정경계 + 경유지 경로 시각화")
@@ -31,7 +31,7 @@ with col2:
 with col3:
     end = st.selectbox("🏁 도착지 선택", options, key="end")
 
-# 순서 리스트
+# 선택 순서 리스트
 selected_names = []
 if start:
     selected_names.append(start)
@@ -57,7 +57,7 @@ m = folium.Map(
     zoom_start=12
 )
 
-# 1) 청주시 행정경계 배경 레이어
+# 1) 청주시 행정경계 GeoJson
 folium.GeoJson(
     boundary,
     name="청주시 행정경계",
@@ -94,7 +94,7 @@ for idx, name in enumerate(selected_names, start=1):
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
-# 선택 안 된 포인트는 클러스터에
+# 선택되지 않은 나머지 포인트는 클러스터에
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(
@@ -153,6 +153,7 @@ if st.button("🚫 초기화"):
     for key in ["routing_result", "start", "waypoints", "end"]:
         if key in st.session_state:
             del st.session_state[key]
+    # 완전 맨 처음으로 새로고침!
     st.rerun()
 
 # ────────────── 6. Directions API ──────────────
@@ -180,4 +181,4 @@ if st.button("✅ 확인 (라우팅 실행)"):
         st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
         st.rerun()
     else:
-        st.warning("출발지와 도착지는 필수, 경유지는 선택!")
+        st.warning("출발지와 도착지는 필수

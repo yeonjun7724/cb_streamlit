@@ -13,9 +13,12 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (Snap-to-Roads + Optimization API)")
+st.title("📍 청주시 경유지 최적 경로 (모드 선택 + Snap-to-Roads)")
 
-# ────────────── 2. 선택 ──────────────
+# ────────────── 2. 모드 선택 ──────────────
+mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
+
+# ────────────── 3. 출발지 + 경유지 선택 ──────────────
 options = gdf["name"].dropna().unique().tolist()
 
 col1, col2 = st.columns(2)
@@ -42,7 +45,7 @@ for name in selected_names:
     row = filtered.iloc[0]
     selected_coords.append((row["lon"], row["lat"]))
 
-# ────────────── 3. 지도 ──────────────
+# ────────────── 4. 지도 ──────────────
 m = folium.Map(
     location=[boundary.geometry.centroid.y.mean(), boundary.geometry.centroid.x.mean()],
     zoom_start=12
@@ -88,7 +91,7 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(marker_cluster)
 
-# ────────────── 4. PolyLine + 화살표 ──────────────
+# ────────────── 5. 구간별 색상 + 화살표 ──────────────
 if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     ordered_names = st.session_state.get("ordered_names", selected_names)
@@ -138,18 +141,19 @@ st_folium(m, height=600, width=800)
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
-# ────────────── 5. 버튼 고정 ──────────────
+# ────────────── 6. 버튼 고정 ──────────────
 col1, col2 = st.columns([1, 1])
 
-MAPBOX_TOKEN = "여기에_본인_MAPBOX_TOKEN"
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 with col1:
     if st.button("✅ Snap & 최적 경로 찾기"):
         if len(selected_coords) >= 2:
             coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
+            profile = f"mapbox/{mode}"
 
-            # 1️⃣ Snap-to-Roads
-            snap_url = f"https://api.mapbox.com/matching/v5/mapbox/driving/{coords_str}"
+            # ✔ Snap 단계
+            snap_url = f"https://api.mapbox.com/matching/v5/{profile}/{coords_str}"
             snap_params = {
                 "geometries": "geojson",
                 "access_token": MAPBOX_TOKEN
@@ -158,14 +162,14 @@ with col1:
             snap_result = snap_resp.json()
 
             if "matchings" not in snap_result or not snap_result["matchings"]:
-                st.error("❌ Snap-to-Roads 실패. 좌표가 도로에 유효한지 확인하세요.")
+                st.error(f"❌ Snap-to-Roads 실패! '{mode}' 모드로 스냅 불가. 포인트를 도로망 위로 조정하세요.")
                 st.stop()
 
             snapped_coords = snap_result["matchings"][0]["geometry"]["coordinates"]
 
-            # 2️⃣ Optimization
+            # ✔ 최적화
             opt_coords_str = ";".join([f"{lon},{lat}" for lon, lat in snapped_coords])
-            url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{opt_coords_str}"
+            url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{opt_coords_str}"
             params = {
                 "geometries": "geojson",
                 "overview": "full",
@@ -177,7 +181,7 @@ with col1:
             result = response.json()
 
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다. 좌표를 다시 확인하세요.")
+                st.error("❌ 최적화된 경로가 없습니다. 도로망을 다시 확인하세요.")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]
@@ -194,7 +198,7 @@ with col1:
             st.success(f"✅ 최적화된 경로 생성! 점 수: {len(route)}")
             st.rerun()
         else:
-            st.warning("⚠️ 출발지 + 경유지 최소 1개 필요!")
+            st.warning("⚠️ 출발지와 경유지를 최소 1개 이상 선택하세요!")
 
 with col2:
     if st.button("🚫 초기화"):

@@ -37,6 +37,7 @@ for wp in waypoints:
 if end and end not in selected_names:
     selected_names.append(end)
 
+# 안전하게 포인트 가져오기
 selected_coords = []
 for name in selected_names:
     filtered = gdf[gdf["name"] == name]
@@ -51,10 +52,10 @@ st.write("✅ 선택 순서:", selected_names)
 # ────────────── 3. 지도 ──────────────
 m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
 
-# MarkerCluster 레이어 추가
+# MarkerCluster 레이어
 marker_cluster = MarkerCluster().add_to(m)
 
-# 선택된 포인트 마커 (순서별)
+# 선택된 포인트 마커
 for idx, name in enumerate(selected_names, start=1):
     row = gdf[gdf["name"] == name].iloc[0]
     lat, lon = row["lat"], row["lon"]
@@ -76,7 +77,7 @@ for idx, name in enumerate(selected_names, start=1):
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
-# 선택 안 된 나머지 포인트를 클러스터에 추가
+# 나머지 포인트는 클러스터에 추가
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(
@@ -92,7 +93,6 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
     num_segments = len(selected_coords) - 1
     colors = ["blue", "green", "orange", "purple", "red"]
 
-    # 구간별 자르기
     points_per_leg = len(route) // num_segments
     for i in range(num_segments):
         seg_points = route[i * points_per_leg : (i + 1) * points_per_leg + 1]
@@ -103,7 +103,6 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
             opacity=0.8
         ).add_to(m)
 
-        # 화살표 더 촘촘하게
         for j in range(0, len(seg_points) - 1, max(1, len(seg_points) // 8)):
             lon1, lat1 = seg_points[j]
             lon2, lat2 = seg_points[j + 1]
@@ -120,7 +119,6 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
                 rotation=angle
             ).add_to(m)
 
-        # 선 위 순서 DivIcon
         mid_idx = len(seg_points) // 2
         lon_mid, lat_mid = seg_points[mid_idx]
         folium.map.Marker(
@@ -130,7 +128,7 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
             )
         ).add_to(m)
 
-# 지도 렌더링
+# 지도 출력
 st_folium(m, height=600, width=800)
 
 # ────────────── 5. 초기화 ──────────────

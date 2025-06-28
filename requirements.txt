@@ -1,0 +1,7 @@
+streamlit>=1.35.0
+plotly>=5.22.0
+geopandas>=0.14.4
+requests>=2.31.0
+pandas>=2.2.2
+shapely>=2.0.3
+pyproj>=3.6.1

@@ -13,7 +13,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-st.title("📍 청주시 경유지 최적 경로 (자동 도착지 + 안전조건)")
+st.title("📍 청주시 경유지 최적 경로 (좌표 & 응답 디버깅 포함)")
 
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].dropna().unique().tolist()
@@ -26,7 +26,6 @@ with col1:
 with col2:
     waypoints = st.multiselect("🧭 경유지 선택", options, key="waypoints")
 
-# 선택 순서 리스트
 selected_names = []
 if start:
     selected_names.append(start)
@@ -42,6 +41,10 @@ for name in selected_names:
         st.stop()
     row = filtered.iloc[0]
     selected_coords.append((row["lon"], row["lat"]))
+
+# 선택한 좌표 디버깅 출력
+if selected_coords:
+    st.write("🗺️ 선택된 좌표 (lon, lat):", selected_coords)
 
 # ────────────── 3. 지도 ──────────────
 m = folium.Map(
@@ -62,7 +65,6 @@ folium.GeoJson(
 
 marker_cluster = MarkerCluster().add_to(m)
 
-# 선택된 포인트 마커
 for idx, name in enumerate(selected_names, start=1):
     row = gdf[gdf["name"] == name].iloc[0]
     lat, lon = row["lat"], row["lon"]
@@ -90,7 +92,7 @@ for _, row in gdf.iterrows():
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
         ).add_to(marker_cluster)
 
-# ────────────── 4. 구간별 색상 PolyLine + 화살표 ──────────────
+# ────────────── 4. PolyLine + 화살표 ──────────────
 if "routing_result" in st.session_state and st.session_state["routing_result"]:
     route = st.session_state["routing_result"]
     ordered_names = st.session_state.get("ordered_names", selected_names)
@@ -137,7 +139,7 @@ if "routing_result" in st.session_state and st.session_state["routing_result"]:
 
 st_folium(m, height=600, width=800)
 
-# 👉 순서 리스트도 출력
+# 순서 리스트 출력
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
@@ -148,7 +150,6 @@ MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVyd
 
 with col1:
     if st.button("✅ 최적 경로 찾기 (도착지 자동)"):
-        # ✅ 안전 조건: 최소 출발지 + 경유지 ≥ 1
         if len(selected_coords) >= 2:
             coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
             url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{coords_str}"
@@ -163,10 +164,13 @@ with col1:
             response = requests.get(url, params=params)
             result = response.json()
 
-            st.write("📦 API 응답:", result)  # ✅ 디버깅 출력
+            st.write("📦 API 응답:", result)  # 디버깅 출력
 
             if not result or "trips" not in result or not result["trips"]:
-                st.error("❌ 최적화된 경로가 없습니다.")
+                st.error("❌ 최적화된 경로가 없습니다.\n"
+                         "👉 좌표가 도로 네트워크에 유효한지 확인하세요.\n"
+                         "👉 너무 가까운 점은 안 됩니다.\n"
+                         "👉 Playground로 직접 확인해보세요.")
                 st.stop()
 
             route = result["trips"][0]["geometry"]["coordinates"]
@@ -185,7 +189,7 @@ with col1:
 
             st.rerun()
         else:
-            st.warning("⚠️ 출발지와 경유지를 최소 1개 이상 선택해야 합니다!")
+            st.warning("⚠️ 출발지 + 경유지를 최소 1개 이상 선택하세요!")
 
 with col2:
     if st.button("🚫 초기화"):

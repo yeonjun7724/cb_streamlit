@@ -1,9 +1,7 @@
-streamlit>=1.35.0
-geopandas>=0.14.4
-fiona>=1.9.5
-shapely>=2.0.3
-pyproj>=3.6.1
-folium>=0.16.0
-streamlit-folium>=0.18.0
-requests>=2.31.0
-scipy>=1.12.0
+streamlit>=1.25
+folium>=0.14
+streamlit-folium>=0.15
+geopandas>=0.14
+osmnx>=1.7
+shapely>=2.0
+requests>=2.28

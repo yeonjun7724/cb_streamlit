@@ -158,6 +158,7 @@ if st.button("🚫 초기화"):
 # ────────────── 6. Directions API ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
+# ✅ 항상 라우팅 버튼 표시, 내부에서 조건만 체크!
 if st.button("✅ 확인 (라우팅 실행)"):
     if len(selected_coords) >= 2:  # 출발지+도착지만 있어도 OK
         coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
@@ -180,4 +181,4 @@ if st.button("✅ 확인 (라우팅 실행)"):
         st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
         st.rerun()
     else:
-        st.warning("출발지와 도착지는 필수입니다!")
+        st.warning("출발지와 도착지를 선택해야 경로를 생성할 수 있습니다.")

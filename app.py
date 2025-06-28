@@ -3,87 +3,96 @@ import folium
 from streamlit_folium import st_folium
 import streamlit as st
 import requests
-from shapely.geometry import Point
 from scipy.spatial import cKDTree
+import numpy as np
 
-# ────────────── 1. 데이터 불러오기 ──────────────
+# ────────────── Shapefile 불러오기 ──────────────
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
-# ────────────── 2. 선택 리스트 초기화 ──────────────
+points_array = gdf[["lon", "lat"]].values
+tree = cKDTree(points_array)
+
+# ────────────── 선택 리스트 초기화 ──────────────
 if "selected_coords" not in st.session_state:
     st.session_state.selected_coords = []
 
-# ────────────── 3. Folium 지도 생성 ──────────────
+# ────────────── Folium 지도 생성 ──────────────
 m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
 
-# 모든 포인트 마커 추가
+# 원본 포인트 마커
 for idx, row in gdf.iterrows():
-    folium.Marker(
+    folium.CircleMarker(
         location=[row["lat"], row["lon"]],
+        radius=5,
+        color="red",
+        fill=True,
+        fill_opacity=0.7,
         popup=f"ID: {idx}"
     ).add_to(m)
 
-# 이미 선택된 포인트는 다른 색으로
+# 이미 선택된 포인트 마커
 for lon, lat in st.session_state.selected_coords:
-    folium.Marker(
+    folium.CircleMarker(
         location=[lat, lon],
-        icon=folium.Icon(color="green")
+        radius=6,
+        color="green",
+        fill=True,
+        fill_opacity=1.0
     ).add_to(m)
 
-# ────────────── 4. 클릭 감지 ──────────────
+# ────────────── 지도 띄우고 클릭 감지 ──────────────
 output = st_folium(m, height=600, width=800)
 
 if output["last_clicked"] is not None:
-    lon = output["last_clicked"]["lng"]
-    lat = output["last_clicked"]["lat"]
+    clicked_lon = output["last_clicked"]["lng"]
+    clicked_lat = output["last_clicked"]["lat"]
+    dist, idx = tree.query([clicked_lon, clicked_lat])
 
-    # KDTree로 가장 가까운 포인트 찾기
-    tree = cKDTree(gdf[["lon", "lat"]].values)
-    dist, idx = tree.query([lon, lat])
+    # 대략 0.001 deg ≈ 100m 정도, 원하는 반경으로 제한
+    if dist <= 0.001:  
+        closest = tuple(points_array[idx])
+        if closest not in st.session_state.selected_coords:
+            st.session_state.selected_coords.append(closest)
+            st.success(f"✅ 선택된 포인트 추가: {closest}")
+    else:
+        st.warning("❌ 너무 멀리 클릭했습니다. 포인트 가까이 클릭하세요.")
 
-    closest_point = (gdf.iloc[idx]["lon"], gdf.iloc[idx]["lat"])
-    if closest_point not in st.session_state.selected_coords:
-        st.session_state.selected_coords.append(closest_point)
+st.write("👉 현재 선택된 포인트:", st.session_state.selected_coords)
 
-st.write("✅ 선택된 포인트:", st.session_state.selected_coords)
-
-# ────────────── 5. 선택 초기화 ──────────────
+# ────────────── 선택 초기화 ──────────────
 if st.button("🚫 선택 초기화"):
     st.session_state.selected_coords = []
 
-# ────────────── 6. [확인] 버튼 → Directions API ──────────────
+# ────────────── Directions API ──────────────
 if st.button("✅ 확인 (라우팅)"):
-    if len(st.session_state.selected_coords) >= 2:
-        coords_str = ";".join([f"{lon},{lat}" for lon, lat in st.session_state.selected_coords])
+    coords = st.session_state.selected_coords
+    if len(coords) >= 2:
+        coords_str = ";".join([f"{lon},{lat}" for lon, lat in coords])
         url = f"https://api.mapbox.com/directions/v5/mapbox/driving/{coords_str}"
         params = {
             "geometries": "geojson",
             "overview": "full",
-            "access_token": "YOUR_MAPBOX_TOKEN"  # ← 실제 토큰으로 교체!
+            "access_token": "YOUR_MAPBOX_TOKEN"
         }
-        st.write("📦 Directions URL:", url)
         response = requests.get(url, params=params)
         result = response.json()
         st.write("📦 API 응답:", result)
 
         if "routes" in result:
             route = result["routes"][0]["geometry"]["coordinates"]
-            st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
 
-            # 새 지도에 경로 시각화
-            m2 = folium.Map(location=[st.session_state.selected_coords[0][1],
-                                      st.session_state.selected_coords[0][0]],
-                            zoom_start=12)
+            # 새로운 지도에 경로 그리기
+            m2 = folium.Map(location=[coords[0][1], coords[0][0]], zoom_start=12)
 
-            for lon, lat in st.session_state.selected_coords:
+            # 선택된 포인트 마커
+            for lon, lat in coords:
                 folium.Marker(location=[lat, lon]).add_to(m2)
 
             folium.PolyLine([(lat, lon) for lon, lat in route], color="blue", weight=4).add_to(m2)
-
             st_folium(m2, height=600, width=800)
         else:
-            st.warning(f"❌ 경로 없음: {result.get('message', 'Unknown error')}")
+            st.warning(f"❌ 경로 생성 실패: {result.get('message', 'Unknown error')}")
     else:
-        st.warning("2개 이상 포인트를 선택해야 경로 생성됩니다.")
+        st.warning("2개 이상 포인트를 선택해야 합니다.")

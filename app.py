@@ -7,7 +7,7 @@ import requests
 import math
 
 # ────────────── 1. 데이터 ──────────────
-# 관광지 포인트
+# 관광지 점 데이터
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
@@ -57,7 +57,7 @@ m = folium.Map(
     zoom_start=12
 )
 
-# 1) 청주시 행정경계 GeoJson
+# 1) 청주시 행정경계 GeoJson 배경
 folium.GeoJson(
     boundary,
     name="청주시 행정경계",
@@ -94,7 +94,7 @@ for idx, name in enumerate(selected_names, start=1):
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
-# 선택되지 않은 나머지 포인트는 클러스터에
+# 선택되지 않은 나머지 포인트 클러스터에 추가
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(
@@ -153,14 +153,13 @@ if st.button("🚫 초기화"):
     for key in ["routing_result", "start", "waypoints", "end"]:
         if key in st.session_state:
             del st.session_state[key]
-    # 완전 맨 처음으로 새로고침!
-    st.rerun()
+    st.rerun()  # 완전 처음 상태로 돌아감!
 
 # ────────────── 6. Directions API ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 if st.button("✅ 확인 (라우팅 실행)"):
-    if len(selected_coords) >= 2:
+    if len(selected_coords) >= 2:  # 출발지+도착지만 있어도 OK
         coords_str = ";".join([f"{lon},{lat}" for lon, lat in selected_coords])
         url = f"https://api.mapbox.com/directions/v5/mapbox/driving/{coords_str}"
         params = {
@@ -181,4 +180,4 @@ if st.button("✅ 확인 (라우팅 실행)"):
         st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
         st.rerun()
     else:
-        st.warning("출발지와 도착지는 필수, 경유지는 선택!")
+        st.warning("출발지와 도착지는 필수입니다!")

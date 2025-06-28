@@ -1,5 +1,6 @@
 import geopandas as gpd
 import folium
+from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 import streamlit as st
 import requests
@@ -10,7 +11,7 @@ gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
 
-st.title("📍 경유지 순서 + 구간별 색상 + 화살표 + 순서 배지")
+st.title("📍 경유지 순서 + 구간별 색상 + 화살표 + 순서 배지 + 클러스터")
 
 # ────────────── 2. 선택 ──────────────
 options = gdf["name"].tolist()
@@ -46,6 +47,9 @@ st.write("✅ 선택 순서:", selected_names)
 # ────────────── 3. 지도 ──────────────
 m = folium.Map(location=[gdf["lat"].mean(), gdf["lon"].mean()], zoom_start=12)
 
+# MarkerCluster 레이어 추가
+marker_cluster = MarkerCluster().add_to(m)
+
 # 선택된 포인트 마커 (순서별)
 for idx, name in enumerate(selected_names, start=1):
     row = gdf[gdf["name"] == name].iloc[0]
@@ -68,7 +72,7 @@ for idx, name in enumerate(selected_names, start=1):
         icon=folium.Icon(color=icon_color, icon=icon_name, prefix="glyphicon")
     ).add_to(m)
 
-# 나머지 포인트
+# 선택 안 된 나머지 포인트를 클러스터에 추가
 for _, row in gdf.iterrows():
     if row["name"] not in selected_names:
         folium.Marker(
@@ -76,7 +80,7 @@ for _, row in gdf.iterrows():
             popup=row["name"],
             tooltip=row["name"],
             icon=folium.Icon(color="gray", icon="map-marker", prefix="glyphicon")
-        ).add_to(m)
+        ).add_to(marker_cluster)
 
 # ────────────── 4. PolyLine + 화살표 + 순서 배지 ──────────────
 if "routing_result" in st.session_state:
@@ -122,6 +126,7 @@ if "routing_result" in st.session_state:
             )
         ).add_to(m)
 
+# 지도 렌더링
 st_folium(m, height=600, width=800)
 
 # ────────────── 5. 초기화 ──────────────

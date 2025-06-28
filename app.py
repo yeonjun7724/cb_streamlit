@@ -67,7 +67,7 @@ if st.button("🚫 선택 초기화"):
         del st.session_state["routing_result"]
 
 # ────────────── 5. Directions API
-MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 if st.button("✅ 확인 (라우팅 실행)"):
     if len(selected_coords) >= 2:

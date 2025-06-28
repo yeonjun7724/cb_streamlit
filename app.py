@@ -134,7 +134,7 @@ if st.button("🚫 초기화"):
     for key in ["routing_result", "start", "waypoints", "end"]:
         if key in st.session_state:
             del st.session_state[key]
-    st.experimental_rerun()
+    st.rerun()
 
 # ────────────── 6. Directions API ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
@@ -159,6 +159,6 @@ if st.button("✅ 확인 (라우팅 실행)"):
         route = result["routes"][0]["geometry"]["coordinates"]
         st.session_state["routing_result"] = route
         st.success(f"✅ 경로 생성됨! 점 수: {len(route)}")
-        st.experimental_rerun()
+        st.rerun()
     else:
         st.warning("출발지와 도착지는 필수, 경유지는 선택!")

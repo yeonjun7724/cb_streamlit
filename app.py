@@ -72,7 +72,7 @@ if st.button("🚫 선택 초기화"):
     st.session_state.selected_coords = []
 
 # ────────────── 6. Mapbox Directions API 호출 ──────────────
-MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"  # ← 실제 발급받은 토큰으로 교체하세요!
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"  # ← 실제 발급받은 토큰으로 교체하세요!
 
 if st.button("✅ 확인 (라우팅 실행)"):
     coords = st.session_state.selected_coords

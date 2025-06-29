@@ -3,30 +3,23 @@ import geopandas as gpd
 import pandas as pd
 import folium
 from folium.plugins import MarkerCluster
-from shapely.geometry import Point
 import osmnx as ox
 import requests
+from shapely.geometry import Point
 from streamlit_folium import st_folium
 from openai import OpenAI
 import math
 
-# ──────────────────────────────
-# ✅ API KEY (직접 변수)
-# ──────────────────────────────
+# ✅ 👉 반드시 그대로 사용 (당신 실키)
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 client = OpenAI(api_key="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")
 
-# ──────────────────────────────
 # ✅ 데이터 로드
-# ──────────────────────────────
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 data = pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
 
-# ──────────────────────────────
-# ✅ Session 초기화
-# ──────────────────────────────
 DEFAULTS = {
     "order": [],
     "segments": [],
@@ -39,84 +32,70 @@ for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ──────────────────────────────
-# ✅ CSS & 스타일
-# ──────────────────────────────
-st.set_page_config(page_title="청주시 경유지 & GPT 가이드", layout="wide")
+# ✅ 카페 포맷 함수
+def format_cafes(cafes_df):
+    cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
+    result = []
+    if len(cafes_df) == 0:
+        return "☕ 현재 이 관광지 주변에 등록된 카페 정보는 없어요.\n근처 숨은 공간을 걸어보세요 😊"
+    elif len(cafes_df) == 1:
+        row = cafes_df.iloc[0]
+        if all(x not in row["c_review"] for x in ["없음", "없읍"]):
+            return f"☕ **추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})\n“{row['c_review']}”"
+        else:
+            return f"☕ **추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"
+    else:
+        grouped = cafes_df.groupby(['c_name', 'c_value'])
+        result.append("☕ **주변에 이런 카페들이 있어요** 🌼\n")
+        for (name, value), group in grouped:
+            reviews = group['c_review'].dropna().unique()
+            reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
+            top_reviews = reviews[:3]
+            if top_reviews:
+                review_text = "\n".join([f"“{r}”" for r in top_reviews])
+                result.append(f"- **{name}** (⭐ {value})\n{review_text}")
+            else:
+                result.append(f"- **{name}** (⭐ {value})")
+        return "\n\n".join(result)
+
+# ✅ 스타일
+st.set_page_config(page_title="청주시 GPT 가이드", layout="wide")
 st.markdown("""
 <style>
-  html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    background: #f9fafb;
-    color: #333;
-  }
-  .card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    margin-bottom: 20px;
-  }
-  .stButton>button {
-    border-radius: 8px;
-    font-weight: 600;
-    padding: 12px 24px;
-    width: 100%;
-  }
-  .btn-create { background: linear-gradient(90deg,#00C9A7,#008EAB); color: #fff; }
-  .btn-clear { background: #E63946; color: #fff; }
+  html, body, [class*="css"] { font-family: 'Inter', sans-serif; background: #f9fafb; color: #333; }
+  .small-text { font-size: 14px; color: #666; }
+  .bold-number { font-size: 20px; font-weight: 600; }
+  .visit-list { font-size: 14px; margin: 2px 0; }
 </style>
 """, unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>📍 청주시 경로 & GPT 가이드</h2>", unsafe_allow_html=True)
 
-# ──────────────────────────────
-# ✅ 상단 타이틀
-# ──────────────────────────────
-st.markdown("<h1 style='text-align:center;'>📍 청주시 경로 & GPT 대시보드</h1>", unsafe_allow_html=True)
+# ✅ UX 흐름: 좌 ➜ 지도 ➜ GPT
+col_left, col_map, col_gpt = st.columns([1.5, 3, 2], gap="large")
 
-# ──────────────────────────────
-# ✅ 컬럼: 좌 → 우 UX 흐름
-# ──────────────────────────────
-col1, col2, col3, col4 = st.columns([1.5, 1, 1, 3], gap="large")
-
-# ------------------------------
-# ✅ [좌] 경로 설정
-# ------------------------------
-with col1:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
+# 🚗 경로 설정 + KPI + 방문 순서
+with col_left:
     st.subheader("🚗 경로 설정")
     mode = st.radio("이동 모드", ["driving","walking"], horizontal=True)
     start = st.selectbox("출발지", gdf["name"].dropna().unique())
     wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != start])
-    create_clicked = st.button("✅ 경로 생성")
-    clear_clicked = st.button("🚫 초기화")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ------------------------------
-# ✅ [중간] 방문 순서
-# ------------------------------
-with col2:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🔢 방문 순서")
+    col_btn1, col_btn2 = st.columns(2)
+    create_clicked = col_btn1.button("✅ 경로 생성")
+    clear_clicked = col_btn2.button("🚫 초기화")
+    st.markdown("---")
+    st.markdown("<div class='small-text'>🔢 방문 순서</div>", unsafe_allow_html=True)
     if st.session_state["order"]:
         for i, name in enumerate(st.session_state["order"], 1):
-            st.markdown(f"{i}. {name}")
+            st.markdown(f"<div class='visit-list'>{i}. {name}</div>", unsafe_allow_html=True)
     else:
-        st.markdown("<span style='color:#aaa'>경로 생성 후 표시됩니다.</span>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<div class='visit-list'>경로가 없습니다.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='small-text'>⏱️ 예상 소요 시간</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='bold-number'>{st.session_state['duration']:.1f} 분</div>", unsafe_allow_html=True)
+    st.markdown("<div class='small-text'>📏 예상 이동 거리</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='bold-number'>{st.session_state['distance']:.2f} km</div>", unsafe_allow_html=True)
 
-# ------------------------------
-# ✅ [중간] KPI 카드
-# ------------------------------
-with col3:
-    st.markdown("<div class='card'>예상 소요 시간</div>", unsafe_allow_html=True)
-    st.subheader(f"{st.session_state['duration']:.1f} 분")
-    st.markdown("<div class='card'>예상 이동 거리</div>", unsafe_allow_html=True)
-    st.subheader(f"{st.session_state['distance']:.2f} km")
-
-# ------------------------------
-# ✅ [우] 지도 + GPT
-# ------------------------------
-with col4:
+# 🗺️ 지도
+with col_map:
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
     if math.isnan(clat): clat, clon = 36.64, 127.48
@@ -173,25 +152,63 @@ with col4:
     if st.session_state["segments"]:
         for seg in st.session_state["segments"]:
             folium.PolyLine([(pt[1], pt[0]) for pt in seg], color="red").add_to(m)
-    st_folium(m, width="100%", height=400)
+    st_folium(m, width="100%", height=500)
 
-    st.markdown("---")
-    st.subheader("🏛️ GPT 가이드")
-    if st.button("🔁 방문 순서 자동 입력"):
+# 💬 GPT
+with col_gpt:
+    st.subheader("🏛️ GPT 관광 가이드")
+    if st.button("🔁 방문 순서 가져오기"):
         st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", []))
     with st.form("chat_form"):
-        user_input = st.text_input("관광지명 쉼표로", value=st.session_state.get("auto_gpt_input", ""))
+        user_input = st.text_input("관광지 쉼표로", value=st.session_state.get("auto_gpt_input", ""))
         submitted = st.form_submit_button("보내기")
     if submitted and user_input:
         st.session_state["messages"].append({"role": "user", "content": user_input})
-        gpt_reply = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "너는 청주 관광 가이드야."},
-                {"role": "user", "content": user_input}
-            ]
-        ).choices[0].message.content
-        st.session_state["messages"].append({"role": "assistant", "content": gpt_reply})
+        with st.spinner("청주의 아름다움을 정리 중입니다..."):
+            places = [p.strip() for p in user_input.split(',') if p.strip()]
+            blocks = []
+            weather_intro = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "당신은 청주 관광 가이드"},
+                    {"role": "user", "content": "청주 날씨, 추천 복장, 팁, 계절 알려줘"}
+                ]
+            ).choices[0].message.content
+            blocks.append(f"🌤️ {weather_intro}")
+
+            for place in places:
+                matched = data[data['t_name'].str.contains(place, na=False)]
+                place_intro = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "감성적인 청주 가이드"},
+                        {"role": "user", "content": f"{place} 역사, 계절, 포토스팟, 코멘트"}
+                    ]
+                ).choices[0].message.content
+                if not matched.empty:
+                    cafes = matched[['c_name','c_value','c_review']].drop_duplicates()
+                    cafe_info = format_cafes(cafes)
+                    t_value = matched['t_value'].dropna().unique()
+                    score_text = f"\n\n📊 관광지 평점: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
+                    reviews = matched['t_review'].dropna().unique()
+                    reviews = [r for r in reviews if all(x not in r for x in ["없음","없읍"])]
+                    review_text = "\n".join([f"“{r}”" for r in reviews[:3]]) if len(reviews) else ""
+                    review_block = f"\n\n💬 방문자 리뷰\n{review_text}" if review_text else ""
+                else:
+                    score_text = ""
+                    review_block = ""
+                    cafe_info = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "청주 카페 추천 가이드"},
+                            {"role": "user", "content": f"{place} 주변 카페 추천해줘"}
+                        ]
+                    ).choices[0].message.content
+
+                blocks.append(f"🏛️ **{place}**\n{score_text}\n\n{place_intro}{review_block}\n\n{cafe_info}")
+            final_response = "\n\n".join(blocks)
+            st.session_state["messages"].append({"role": "assistant", "content": final_response})
+
     for msg in st.session_state["messages"][1:]:
         align = "right" if msg["role"] == "user" else "left"
         bg = "#dcf8c6" if msg["role"] == "user" else "#fff"

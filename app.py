@@ -11,28 +11,17 @@ import osmnx as ox
 import requests
 import math
 from streamlit_folium import st_folium
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
-from krwordrank.word import summarize_with_keywords
 from openai import OpenAI
 
-# ───────────────────────────────
-# 1) 공통 설정
-# ───────────────────────────────
+# ─────────────── 기본 설정 ───────────────
 st.set_page_config(page_title="청주시 문화관광 대시보드", layout="wide")
-MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"
+MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"  # ← 본인 Mapbox 토큰으로 교체
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ───────────────────────────────
-# 2) 데이터 로드
-# ───────────────────────────────
+# ─────────────── 데이터 로드 ───────────────
 @st.cache_data
 def load_data():
     return pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
-
-@st.cache_data
-def load_sentiment_data():
-    return pd.read_excel("sentiment_cafe_data_all_20250628.xlsx")
 
 @st.cache_data
 def load_gis_data():
@@ -42,17 +31,27 @@ def load_gis_data():
     return gdf, boundary
 
 data = load_data()
-sentiment_df = load_sentiment_data()
 gdf, boundary = load_gis_data()
 
-# ───────────────────────────────
-# 3) 컬럼 레이아웃
-# ───────────────────────────────
+# ─────────────── 안전한 session_state 초기화 ───────────────
+if "route_order" not in st.session_state:
+    st.session_state.route_order = []
+if "route_segments" not in st.session_state:
+    st.session_state.route_segments = []
+if "route_duration" not in st.session_state:
+    st.session_state.route_duration = 0.0
+if "route_distance" not in st.session_state:
+    st.session_state.route_distance = 0.0
+
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = [
+        {"role": "system", "content": "당신은 청주 문화유산을 소개하는 관광 가이드입니다."}
+    ]
+
+# ─────────────── 컬럼 구성 ───────────────
 col_left, col_right = st.columns([1, 1])
 
-# ───────────────────────────────
-# 4) 좌측: 경유지 최적 경로
-# ───────────────────────────────
+# ─────────────── 좌측: 경유지 최적 경로 ───────────────
 with col_left:
     st.markdown("<h2>🚗 청주시 경유지 최적 경로</h2>", unsafe_allow_html=True)
 
@@ -84,8 +83,10 @@ with col_left:
         snapped.append((sp.x, sp.y))
 
     if clear_clicked:
-        for k in ["route_segments", "route_order", "route_duration", "route_distance"]:
-            st.session_state.pop(k, None)
+        st.session_state.route_order = []
+        st.session_state.route_segments = []
+        st.session_state.route_duration = 0.0
+        st.session_state.route_distance = 0.0
 
     if create_clicked and len(snapped) >= 2:
         segs, td, tl = [], 0.0, 0.0
@@ -125,24 +126,19 @@ with col_left:
     mc = MarkerCluster().add_to(m)
     for _, row in gdf.iterrows():
         folium.Marker([row.lat, row.lon], popup=row.name).add_to(mc)
+
     for idx, (x, y) in enumerate(snapped, 1):
         folium.Marker([y, x], icon=folium.Icon(color="blue"),
                       tooltip=f"{idx}. {st.session_state.get('route_order', stops)[idx - 1]}").add_to(m)
-    if "route_segments" in st.session_state:
+
+    if st.session_state.get("route_segments"):
         for seg in st.session_state.route_segments:
             folium.PolyLine([(pt[1], pt[0]) for pt in seg], color="red").add_to(m)
     st_folium(m, width="100%", height=600)
 
-# ───────────────────────────────
-# 5) 우측: 관광지 챗봇 & 감정 분석
-# ───────────────────────────────
+# ─────────────── 우측: 관광 챗봇 ───────────────
 with col_right:
-    st.markdown("<h2>🏛️ 청주 문화관광 가이드 & 감정 분석</h2>", unsafe_allow_html=True)
-
-    if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = [
-            {"role": "system", "content": "당신은 청주 문화유산을 소개하는 관광 가이드입니다."}
-        ]
+    st.markdown("<h2>🏛️ 청주 문화관광 가이드</h2>", unsafe_allow_html=True)
 
     for msg in st.session_state.chat_messages[1:]:
         if msg["role"] == "user":
@@ -162,11 +158,10 @@ with col_right:
 
     if submitted and user_input:
         st.session_state.chat_messages.append({"role": "user", "content": user_input})
-        with st.spinner("분석 중입니다..."):
+        with st.spinner("GPT 답변 생성 중..."):
             places = [p.strip() for p in user_input.split(',')]
             blocks = []
             for place in places:
-                matched = data[data['t_name'].str.contains(place, na=False)]
                 gpt_place = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[

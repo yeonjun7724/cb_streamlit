@@ -1,10 +1,7 @@
-streamlit
-pandas
-geopandas
-folium
-streamlit-folium
-osmnx
-krwordrank
-openai
-matplotlib
-wordcloud
+streamlit>=1.32.0
+geopandas>=0.14.0
+shapely>=2.0
+osmnx>=1.6.0
+folium>=0.15.0
+streamlit-folium>=0.14.0
+requests>=2.31.0

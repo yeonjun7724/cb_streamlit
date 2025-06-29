@@ -49,7 +49,7 @@ def get_osm_graph(lat, lon):
 G = get_osm_graph(center_lat, center_lon)
 edges = ox.graph_to_gdfs(G, nodes=False)
 
-# ────────────── 5. Nearest 스냅 (내부 계산만) ──────────────
+# ────────────── 5. Nearest 스냅 (내부 계산용) ──────────────
 snapped_coords = []
 if selected_names:
     for name in selected_names:
@@ -59,15 +59,19 @@ if selected_names:
         nl = edges.loc[edges["distance"].idxmin()]
         sp = nl.geometry.interpolate(nl.geometry.project(pt))
         snapped_coords.append((sp.x, sp.y))
-# >>> 스냅된 좌표 출력 부분 제거 <<<
 
 # ────────────── 6. Folium 지도 생성 ──────────────
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+# — 경계
 folium.GeoJson(
     boundary,
     name="청주시 경계",
     style_function=lambda x: {
-        "fillColor":"#ffffff","color":"#000000","weight":1,"fillOpacity":0.1
+        "fillColor": "#ffffff",
+        "color": "#000000",
+        "weight": 1,
+        "fillOpacity": 0.1
     }
 ).add_to(m)
 
@@ -84,76 +88,100 @@ for _, row in gdf.iterrows():
 # — 기존 라우팅 경로
 if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
-    folium.PolyLine([(lat, lon) for lon, lat in route], color="red", weight=4).add_to(m)
-    # 경로 범위로 자동 줌
-    lats = [lat for lon, lat in route]
-    lons = [lon for lon, lat in route]
-    m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+    folium.PolyLine(
+        [(lat, lon) for lon, lat in route],
+        color="red", weight=4
+    ).add_to(m)
 
+# — 초기/선택/라우팅별 자동 줌
+if "routing_result" in st.session_state:
+    coords = st.session_state["routing_result"]
+    lats = [lat for lon, lat in coords]
+    lons = [lon for lon, lat in coords]
+    m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+elif snapped_coords:
+    lats = [lat for lon, lat in snapped_coords]
+    lons = [lon for lon, lat in snapped_coords]
+    m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+else:
+    # 전체 지점 범위
+    minx, miny, maxx, maxy = gdf.total_bounds
+    m.fit_bounds([[miny, minx], [maxy, maxx]])
+
+# — 레이어 토글
 folium.LayerControl().add_to(m)
+
+# — 지도 렌더링
 st_folium(m, height=600, width=800)
 
-# — 방문 순서 출력
+# — 방문 순서 및 메트릭 표시
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
+    st.write(f"⏱️ 예상 소요 시간: {st.session_state['duration']:.1f} 분")
+    st.write(f"📏 예상 이동 거리: {st.session_state['distance']:.2f} km")
 
 # ────────────── 7. 버튼 로직 ──────────────
 col1, col2 = st.columns(2)
 with col1:
     if st.button("✅ 최적 경로 찾기"):
         if len(snapped_coords) < 2:
-            st.warning("⚠️ 출발지/경유지 2개 이상 선택해주세요!")
+            st.warning("⚠️ 출발지와 경유지 2개 이상 선택해주세요!")
             st.stop()
 
         coords_str = ";".join(f"{lon},{lat}" for lon, lat in snapped_coords)
 
         if mode == "walking":
-            # 보행: Directions API
             url = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coords_str}"
-            params = {"geometries":"geojson","overview":"full","access_token":MAPBOX_TOKEN}
+            params = {
+                "geometries": "geojson",
+                "overview":   "full",
+                "access_token": MAPBOX_TOKEN
+            }
             key = "routes"
         else:
-            # 운전: Optimized-Trips API
             url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coords_str}"
             params = {
-                "geometries":"geojson","overview":"full",
-                "source":"first","destination":"last","roundtrip":"false",
-                "access_token":MAPBOX_TOKEN
+                "geometries":   "geojson",
+                "overview":     "full",
+                "source":       "first",
+                "destination":  "last",
+                "roundtrip":    "false",
+                "access_token": MAPBOX_TOKEN
             }
             key = "trips"
 
         resp = requests.get(url, params=params)
-        result = resp.json()
-        if resp.status_code != 200 or not result.get(key):
-            st.error("❌ 경로를 생성할 수 없습니다. 좌표나 토큰, 모드를 확인해주세요.")
+        data = resp.json()
+        if resp.status_code != 200 or not data.get(key):
+            st.error("❌ 경로 생성 실패 – 좌표, 토큰, 모드를 확인해주세요.")
             st.stop()
 
-        # 경로·메트릭 추출
         if mode == "walking":
-            trip = result["routes"][0]
+            trip = data["routes"][0]
             route = trip["geometry"]["coordinates"]
-            duration = trip.get("duration",0)/60    # 분
-            distance = trip.get("distance",0)/1000  # km
-            st.session_state["ordered_names"] = selected_names
+            duration = trip.get("duration", 0) / 60
+            distance = trip.get("distance", 0) / 1000
+            ordered = selected_names
         else:
-            trip = result["trips"][0]
+            trip = data["trips"][0]
             route = trip["geometry"]["coordinates"]
-            duration = trip.get("duration",0)/60
-            distance = trip.get("distance",0)/1000
-            wps = result["waypoints"]
-            visited = sorted(zip(wps, selected_names), key=lambda x:x[0]["waypoint_index"])
-            st.session_state["ordered_names"] = [n for _,n in visited]
+            duration = trip.get("duration", 0) / 60
+            distance = trip.get("distance", 0) / 1000
+            wps = data["waypoints"]
+            visited = sorted(zip(wps, selected_names),
+                             key=lambda x: x[0]["waypoint_index"])
+            ordered = [n for _, n in visited]
 
         st.session_state["routing_result"] = route
-
-        # ← 여기가 추가된 부분: 소요시간/거리 모두 모드별로 표시
-        st.write(f"⏱️ 예상 소요 시간: {duration:.1f}분")
-        st.write(f"📏 예상 이동 거리: {distance:.2f}km")
+        st.session_state["ordered_names"] = ordered
+        st.session_state["duration"] = duration
+        st.session_state["distance"] = distance
 
         st.success("✅ 최적 경로 생성됨!")
         st.rerun()
+
 with col2:
     if st.button("🚫 초기화"):
-        for k in ["routing_result","ordered_names"]:
-            st.session_state.pop(k,None)
+        for k in ["routing_result", "ordered_names", "duration", "distance"]:
+            st.session_state.pop(k, None)
         st.rerun()

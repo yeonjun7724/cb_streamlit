@@ -52,6 +52,8 @@ if "distance" not in st.session_state:
     st.session_state["distance"] = 0.0
 if "chat_messages" not in st.session_state:
     st.session_state["chat_messages"] = [{"role": "system", "content": "당신은 청주시 문화관광 전문 가이드입니다."}]
+if "auto_gpt_input" not in st.session_state:
+    st.session_state["auto_gpt_input"] = ""
 
 # ──────────────────────────────
 # 4) 헤더
@@ -196,6 +198,7 @@ with col_left:
 
 with col_right:
     st.subheader("🏛️ 청주 관광 GPT 가이드")
+
     for msg in st.session_state["chat_messages"][1:]:
         align = "right" if msg["role"]=="user" else "left"
         bg = "#dcf8c6" if msg["role"]=="user" else "#fff"
@@ -204,8 +207,20 @@ with col_right:
             unsafe_allow_html=True)
 
     st.divider()
+
+    if st.button("🔁 방문 순서를 입력창에 불러오기"):
+        route = st.session_state.get("order", [])
+        if route:
+            st.session_state["auto_gpt_input"] = ", ".join(route)
+        else:
+            st.warning("⚠️ 먼저 경로를 생성하세요!")
+
     with st.form("chat_form"):
-        user_input = st.text_input("📍 관광지명을 입력하세요")
+        user_input = st.text_input(
+            "📍 관광지명을 입력하세요",
+            value=st.session_state.get("auto_gpt_input", ""),
+            key="auto_gpt_input"
+        )
         submitted  = st.form_submit_button("보내기")
 
     if submitted and user_input:
@@ -216,19 +231,3 @@ with col_right:
                 messages=st.session_state["chat_messages"]
             ).choices[0].message.content
             st.session_state["chat_messages"].append({"role":"assistant","content":gpt_reply})
-
-    if st.button("📌 현재 경로로 GPT 추천 받기"):
-        route = st.session_state.get("order", [])
-        dur = st.session_state.get("duration", 0.0)
-        dist = st.session_state.get("distance", 0.0)
-        if route:
-            prompt = f"다음은 청주시 관광 경로입니다:\n방문 순서: {', '.join(route)}\n예상 소요 시간: {dur:.1f}분, 예상 거리: {dist:.2f}km.\n각 방문지마다 추천 여행 팁과 계절별 사진 포인트를 알려줘."
-            st.session_state["chat_messages"].append({"role":"user","content":prompt})
-            with st.spinner("GPT가 경로 기반 추천을 작성 중..."):
-                gpt_reply = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=st.session_state["chat_messages"]
-                ).choices[0].message.content
-                st.session_state["chat_messages"].append({"role":"assistant","content":gpt_reply})
-        else:
-            st.warning("⚠️ 먼저 경로를 생성해주세요!")

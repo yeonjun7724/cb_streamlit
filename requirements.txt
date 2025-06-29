@@ -1,7 +1,9 @@
-streamlit>=1.32.0
-geopandas>=0.14.0
+streamlit>=1.33.0
+pandas>=1.5
+geopandas>=0.13
+folium>=0.14
+streamlit-folium>=0.14
+osmnx>=1.7
 shapely>=2.0
-osmnx>=1.6.0
-folium>=0.15.0
-streamlit-folium>=0.14.0
-requests>=2.31.0
+requests>=2.31
+openai>=1.14.3

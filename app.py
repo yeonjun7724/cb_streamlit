@@ -16,11 +16,14 @@ from openai import OpenAI
 # ───────────────────────────────
 st.set_page_config(page_title="청주시 문화관광 대시보드", layout="wide")
 
-# Mapbox 토큰은 코드에 하드코딩 (필요시 secrets로 빼도 OK)
+# Mapbox 토큰 직접 변수로
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
-# OpenAI 클라이언트는 반드시 secrets.toml 구조에 맞게 호출
-client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+# ✅ OpenAI API 키를 직접 변수로 설정
+OPENAI_API_KEY = "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"
+
+# OpenAI 클라이언트 직접 연결
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ───────────────────────────────
 # 2) 데이터 로드

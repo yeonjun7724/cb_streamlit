@@ -6,52 +6,31 @@ import folium
 from folium.plugins import MarkerCluster
 from shapely.geometry import Point
 import osmnx as ox
-import requests, math
+import requests
 from streamlit_folium import st_folium
 from openai import OpenAI
+import math
 
 # ──────────────────────────────
-# ✅ 기본 세팅 + CSS 테마
+# ✅ 기본 설정 & 스타일
 # ──────────────────────────────
 st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
 
 st.markdown("""
 <style>
-body {
-    background: #f9fafb;
-    color: #333;
-    font-family: 'Inter', sans-serif;
-}
-h1,h2,h3,h4 {
-    font-weight: 600;
-}
-.card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
-}
-.stButton>button {
-    border-radius: 8px;
-    font-weight: 600;
-    padding: 10px 24px;
-}
-.btn-create {
-    background: linear-gradient(90deg, #00C9A7, #008EAB);
-    color: #FFF;
-}
-.btn-clear {
-    background: #E63946;
-    color: #FFF;
-}
+body { background: #f9fafb; color: #333; font-family: 'Inter', sans-serif; }
+h1,h2,h3,h4 { font-weight: 600; }
+.card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+.stButton>button { border-radius: 8px; font-weight: 600; padding: 10px 24px; }
+.btn-create { background: linear-gradient(90deg, #00C9A7, #008EAB); color: #FFF; }
+.btn-clear { background: #E63946; color: #FFF; }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ API 키 (조직 ID 필요 없음!)
+# ✅ API 키
 # ──────────────────────────────
-MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 OPENAI_API_KEY = "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"
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -63,7 +42,7 @@ gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
 # ──────────────────────────────
-# ✅ session_state
+# ✅ session_state 초기화
 # ──────────────────────────────
 DEFAULTS = {
     "order": [],
@@ -78,28 +57,20 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 헤더
-# ──────────────────────────────
-st.markdown("<h1 style='text-align:center;'>📍 청주시 경유지 & GPT</h1>", unsafe_allow_html=True)
-
-# ──────────────────────────────
 # ✅ 레이아웃
 # ──────────────────────────────
+st.markdown("<h1 style='text-align:center;'>📍 청주시 경유지 & GPT</h1>", unsafe_allow_html=True)
 col_left, col_right = st.columns([3, 1.5], gap="large")
 
 # ──────────────── 좌측: 경유지 경로 ────────────────
 with col_left:
     m1, m2 = st.columns(2, gap="small")
     with m1:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("⏱️ **예상 소요 시간**")
+        st.markdown("<div class='card'>⏱️ **예상 소요 시간**</div>", unsafe_allow_html=True)
         st.subheader(f"{st.session_state['duration']:.1f} 분")
-        st.markdown("</div>", unsafe_allow_html=True)
     with m2:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("📏 **예상 이동 거리**")
+        st.markdown("<div class='card'>📏 **예상 이동 거리**</div>", unsafe_allow_html=True)
         st.subheader(f"{st.session_state['distance']:.2f} km")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     col_ctrl, col_order, col_map = st.columns([1.5, 1, 4], gap="large")
 
@@ -138,61 +109,56 @@ with col_left:
         @st.cache_data
         def load_graph(lat, lon):
             return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
-
         G = load_graph(clat, clon)
-        edges = ox.graph_to_gdfs(G, nodes=False)
 
         stops = [start] + wps
         snapped = []
         for nm in stops:
-            r = gdf[gdf["name"]==nm].iloc[0]
-            pt = Point(r.lon, r.lat)
-            edges["d"] = edges.geometry.distance(pt)
-            ln = edges.loc[edges["d"].idxmin()]
-            sp = ln.geometry.interpolate(ln.geometry.project(pt))
-            snapped.append((sp.x, sp.y))
+            row = gdf[gdf["name"] == nm].iloc[0]
+            lon, lat = row.lon, row.lat
+            node_id = ox.distance.nearest_nodes(G, lon, lat)
+            node_data = G.nodes[node_id]
+            snapped.append((node_data['x'], node_data['y']))
 
         if clear_clicked:
             for k in ["segments","order","duration","distance"]:
                 st.session_state.pop(k, None)
 
         if create_clicked and len(snapped) >= 2:
-            segs, td, tl = [], 0.0, 0.0
-            for i in range(len(snapped)-1):
-                x1,y1 = snapped[i]; x2,y2 = snapped[i+1]
-                coord = f"{x1},{y1};{x2},{y2}"
-                if mode == "walking":
-                    url,key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}","routes"
-                    params={"geometries":"geojson","overview":"full","access_token":MAPBOX_TOKEN}
-                else:
-                    url,key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}","trips"
-                    params={
-                        "geometries":"geojson","overview":"full",
-                        "source":"first","destination":"last","roundtrip":"false",
-                        "access_token":MAPBOX_TOKEN
-                    }
-                r = requests.get(url, params=params)
-                data = r.json() if r.status_code == 200 else {}
-                if key in data:
-                    leg = data[key][0]
-                    segs.append(leg["geometry"]["coordinates"])
-                    td += leg["duration"]; tl += leg["distance"]
-            if segs:
-                st.session_state["order"] = stops
-                st.session_state["duration"] = td / 60
-                st.session_state["distance"] = tl / 1000
-                st.session_state["segments"] = segs
+            coords = ";".join([f"{x},{y}" for x, y in snapped])
+            if len(snapped) > 2:
+                url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coords}"
+                key = "trips"
+                params = {
+                    "geometries": "geojson", "overview": "full",
+                    "source": "first", "destination": "last", "roundtrip": "false",
+                    "access_token": MAPBOX_TOKEN
+                }
             else:
-                st.warning("🚫 경로 생성 실패!")
+                url = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coords}"
+                key = "routes"
+                params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
+
+            r = requests.get(url, params=params)
+            data = r.json() if r.status_code == 200 else {}
+
+            if key in data and data[key]:
+                route = data[key][0]
+                st.session_state["segments"] = [route["geometry"]["coordinates"]]
+                st.session_state["duration"] = route["duration"] / 60
+                st.session_state["distance"] = route["distance"] / 1000
+                st.session_state["order"] = stops
+            else:
+                st.warning("❌ 경로 생성 실패!")
 
         m = folium.Map(location=[clat, clon], zoom_start=12)
         folium.GeoJson(boundary).add_to(m)
         mc = MarkerCluster().add_to(m)
         for _, row in gdf.iterrows():
-            folium.Marker([row.lat,row.lon], popup=row.name).add_to(mc)
+            folium.Marker([row.lat, row.lon], popup=row.name).add_to(mc)
 
-        for idx, ((x,y), name) in enumerate(zip(snapped, st.session_state.get("order", stops)), 1):
-            folium.Marker([y,x], tooltip=f"{idx}. {name}",
+        for idx, ((x, y), name) in enumerate(zip(snapped, st.session_state.get("order", stops)), 1):
+            folium.Marker([y, x], tooltip=f"{idx}. {name}",
                           icon=folium.Icon(color="#008EAB", icon="flag")).add_to(m)
 
         if st.session_state["segments"]:
@@ -209,8 +175,8 @@ with col_right:
     st.subheader("🏛️ 청주 GPT 가이드")
 
     for msg in st.session_state["chat_messages"][1:]:
-        align = "right" if msg["role"]=="user" else "left"
-        bg = "#dcf8c6" if msg["role"]=="user" else "#fff"
+        align = "right" if msg["role"] == "user" else "left"
+        bg = "#dcf8c6" if msg["role"] == "user" else "#fff"
         st.markdown(
             f"<div style='text-align:{align};background:{bg};padding:8px;border-radius:10px;margin-bottom:6px'>{msg['content']}</div>",
             unsafe_allow_html=True)
@@ -231,12 +197,12 @@ with col_right:
         submitted = st.form_submit_button("보내기")
 
     if submitted and user_input:
-        st.session_state["chat_messages"].append({"role":"user","content":user_input})
+        st.session_state["chat_messages"].append({"role": "user", "content": user_input})
         with st.spinner("GPT 답변 생성 중..."):
             gpt_reply = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=st.session_state["chat_messages"]
             ).choices[0].message.content
-            st.session_state["chat_messages"].append({"role":"assistant","content":gpt_reply})
+            st.session_state["chat_messages"].append({"role": "assistant", "content": gpt_reply})
 
     st.markdown("</div>", unsafe_allow_html=True)

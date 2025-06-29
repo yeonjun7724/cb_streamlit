@@ -28,8 +28,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-MAPBOX_TOKEN   = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+
+# ✅ 여기 정확히 프로젝트 키 삽입!
 OPENAI_API_KEY = "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"
+
+# ✅ OpenAI 클라이언트 생성
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ──────────────────────────────

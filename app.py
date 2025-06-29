@@ -70,6 +70,8 @@ if snapped_coords:
 
 # ────────────── 6. Folium 지도 ──────────────
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+
+# — 경계
 folium.GeoJson(
     boundary,
     name="청주시 경계",
@@ -81,7 +83,18 @@ folium.GeoJson(
     }
 ).add_to(m)
 
-marker_cluster = MarkerCluster().add_to(m)
+# — 모든 투어 지점 클러스터
+all_cluster = MarkerCluster(name="All Tour Points").add_to(m)
+for _, row in gdf.iterrows():
+    folium.Marker(
+        location=[row["lat"], row["lon"]],
+        popup=row.get("name", ""),
+        tooltip=row.get("name", ""),
+        icon=folium.Icon(color="lightgray", prefix="glyphicon")
+    ).add_to(all_cluster)
+
+# — 스냅된 좌표 클러스터
+snap_cluster = MarkerCluster(name="Snapped Points").add_to(m)
 for idx, (lon, lat) in enumerate(snapped_coords, start=1):
     icon_color = "green" if idx == 1 else "blue"
     folium.Marker(
@@ -89,11 +102,15 @@ for idx, (lon, lat) in enumerate(snapped_coords, start=1):
         popup=f"{idx}. {selected_names[idx-1]}",
         tooltip=f"{idx}. {selected_names[idx-1]}",
         icon=folium.Icon(color=icon_color, prefix="glyphicon")
-    ).add_to(marker_cluster)
+    ).add_to(snap_cluster)
 
+# — 이전에 생성된 라우팅 경로
 if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
-    folium.PolyLine([(lat, lon) for lon, lat in route], color="blue", weight=5).add_to(m)
+    folium.PolyLine([(lat, lon) for lon, lat in route], color="red", weight=4).add_to(m)
+
+# — 레이어 컨트롤
+folium.LayerControl().add_to(m)
 
 st_folium(m, height=600, width=800)
 
@@ -105,29 +122,25 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("✅ 최적 경로 찾기"):
-        # 최소 2점 이상 필요
         if len(snapped_coords) < 2:
             st.warning("⚠️ 출발지/경유지 2개 이상을 선택해주세요!")
             st.stop()
 
-        # 1) coords_str
         coords_str = ";".join(f"{lon},{lat}" for lon, lat in snapped_coords)
         st.write("▶ coords_str:", coords_str)
 
-        # 2) 요청 URL·파라미터
         profile = f"mapbox/{mode}"
         url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{coords_str}"
         params = {
             "geometries": "geojson",
             "overview": "full",
             "source": "first",
-            "roundtrip": "false",  # 문자열로
+            "roundtrip": "false",
             "access_token": MAPBOX_TOKEN
         }
         st.write("▶ 요청 URL:", url)
         st.write("▶ 요청 파라미터:", params)
 
-        # 3) API 호출
         response = requests.get(url, params=params)
         st.write("▶ HTTP 상태 코드:", response.status_code)
         try:
@@ -138,20 +151,17 @@ with col1:
 
         st.write("▶ Mapbox 응답:", result)
 
-        # 4) trips 검사
         if response.status_code != 200 or not result.get("trips"):
-            st.error("❌ 최적화 경로를 찾을 수 없습니다. Playground나 좌표를 다시 확인해주세요.")
+            st.error("❌ 최적화 경로를 찾을 수 없습니다. 좌표나 토큰을 다시 확인해주세요.")
             st.stop()
 
-        # 5) 경로 & 순서 저장
+        # 라우팅 결과 세션에 저장
         route = result["trips"][0]["geometry"]["coordinates"]
         st.session_state["routing_result"] = route
 
         waypoints = result["waypoints"]
-        visited = sorted(
-            zip(waypoints, selected_names),
-            key=lambda x: x[0]["waypoint_index"]
-        )
+        visited = sorted(zip(waypoints, selected_names),
+                         key=lambda x: x[0]["waypoint_index"])
         st.session_state["ordered_names"] = [name for _, name in visited]
 
         st.success(f"✅ 최적 경로 생성됨! 포인트 수: {len(route)}")
@@ -160,6 +170,5 @@ with col1:
 with col2:
     if st.button("🚫 초기화"):
         for key in ["routing_result", "ordered_names"]:
-            if key in st.session_state:
-                del st.session_state[key]
+            st.session_state.pop(key, None)
         st.rerun()

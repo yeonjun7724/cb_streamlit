@@ -1,4 +1,3 @@
-나의 말:
 # app.py
 
 import streamlit as st
@@ -17,8 +16,12 @@ from openai import OpenAI
 # ───────────────────────────────
 st.set_page_config(page_title="청주시 문화관광 대시보드", layout="wide")
 
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"  # ← 본인 Mapbox 토큰으로 교체
-client = OpenAI(api_key=st.secrets["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"])
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+client = OpenAI(
+    api_key=st.secrets[
+        "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"
+    ]
+)
 
 # ───────────────────────────────
 # 2) 데이터 로드
@@ -38,7 +41,7 @@ data = load_data()
 gdf, boundary = load_gis_data()
 
 # ───────────────────────────────
-# 3) session_state 완전 초기화
+# 3) session_state 초기화
 # ───────────────────────────────
 DEFAULTS = {
     "route_order": [],
@@ -53,12 +56,12 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ───────────────────────────────
-# 4) 레이아웃
+# 4) 레이아웃 분할
 # ───────────────────────────────
 col_left, col_right = st.columns([1, 1])
 
 # ───────────────────────────────
-# 5) 좌측: 경유지 경로
+# 5) 좌측: 경유지 경로 시각화
 # ───────────────────────────────
 with col_left:
     st.header("🚗 청주시 경유지 최적 경로")
@@ -148,7 +151,7 @@ with col_left:
     st_folium(m, width="100%", height=600)
 
 # ───────────────────────────────
-# 6) 우측: 관광지 GPT 챗봇
+# 6) 우측: GPT 기반 관광지 설명 챗봇
 # ───────────────────────────────
 with col_right:
     st.header("🏛️ 청주 문화관광 가이드")

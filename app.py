@@ -9,119 +9,104 @@ import requests, math
 from streamlit_folium import st_folium
 
 # ───────────────────────────────────────────────────────────
-# 1. 페이지 설정 & 전역 CSS
+# 1) 페이지 & 글로벌 CSS
 # ───────────────────────────────────────────────────────────
 st.set_page_config(page_title="청주시 경유지 최적 경로", layout="wide")
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap');
-  html, body, [class*="css"] { font-family: 'Nanum Gothic', sans-serif; background: #F0F2F5; color: #202124; }
-  h1, h2, h3, h4 { margin: 0; padding: 0; }
-
-  /* 레이아웃 그리드 */
-  .full-width { width: 100% !important; }
-  .card { background: #ffffff; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.08); padding:24px; margin-bottom:24px; }
-  .btn-primary {
-    background: linear-gradient(90deg, #3DB5FF, #2A8DFF);
-    color: white !important;
-    font-weight:700;
-    border:none; border-radius:8px;
-    padding:12px 24px;
-    transition: transform .1s;
-  }
-  .btn-primary:hover { transform: translateY(-2px); opacity:0.9; }
-  .btn-secondary {
-    background: #FF5A5F; color: white !important;
-    font-weight:700; border:none; border-radius:8px;
-    padding:12px 24px;
-    transition: transform .1s;
-  }
-  .btn-secondary:hover { transform: translateY(-2px); opacity:0.9; }
-
-  /* 입력 라벨 컬러 */
-  label, .stRadio>label { color: #5F6368 !important; }
-  /* 레이어 컨트롤 위치 (네이버맵 느낌) */
-  .leaflet-top.leaflet-left { top: 10px; left: 10px; }
+  /* 폰트 */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+  html, body, [class*="css"] { font-family: 'Inter', sans-serif; background: #F9F9F9; color: #333; }
+  h1 { font-weight:600; }
+  /* 카드 */
+  .card { background:#FFF; border-radius:12px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:24px; }
+  /* 버튼 */
+  .stButton>button { border-radius:8px; font-weight:600; padding:10px 24px; }
+  .btn-create { background: linear-gradient(90deg,#00C9A7,#008EAB); color:#FFF; }
+  .btn-clear  { background:#E63946; color:#FFF; }
+  .stButton>button:hover { opacity:0.9; }
+  /* 입력 레이블 */
+  label, .stRadio>label { color:#555; font-weight:500; }
+  /* 지도 컨테이너 */
+  .leaflet-container { border-radius:12px !important; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
 </style>
 """, unsafe_allow_html=True)
 
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1..."
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 # ───────────────────────────────────────────────────────────
-# 2. 데이터 로드
+# 2) 데이터 로드
 # ───────────────────────────────────────────────────────────
-gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
+gdf      = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
 # ───────────────────────────────────────────────────────────
-# 3. 헤더
+# 3) 헤더
 # ───────────────────────────────────────────────────────────
-st.markdown("""
-<div class="card full-width" style="text-align:center;">
-  <h1>📍 청주시 경유지 최적 경로</h1>
-  <p style="color:#5F6368; margin-top:4px;">네이버·카카오 감성의 트렌디 대시보드</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; padding:16px 0;'>📍 청주시 경유지 최적 경로</h1>", unsafe_allow_html=True)
 
 # ───────────────────────────────────────────────────────────
-# 4. 메트릭
+# 4) 메트릭 (전체 폭)
 # ───────────────────────────────────────────────────────────
 dur  = st.session_state.get("duration", 0.0)
 dist = st.session_state.get("distance", 0.0)
 m1, m2, _ = st.columns([1,1,4], gap="small")
+
 with m1:
-    st.markdown(f"""
-    <div class="card">
-      <h4>⏱️ 예상 소요 시간</h4>
-      <h2 style="margin-top:8px;">{dur:.1f} 분</h2>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='card text-center'>", unsafe_allow_html=True)
+    st.markdown("<h4>⏱️ 예상 소요 시간</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='margin-top:8px;'>{dur:.1f} 분</h2>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
 with m2:
-    st.markdown(f"""
-    <div class="card">
-      <h4>📏 예상 이동 거리</h4>
-      <h2 style="margin-top:8px;">{dist:.2f} km</h2>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='card text-center'>", unsafe_allow_html=True)
+    st.markdown("<h4>📏 예상 이동 거리</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='margin-top:8px;'>{dist:.2f} km</h2>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ───────────────────────────────────────────────────────────
-# 5. 메인 레이아웃 (컨트롤 / 순서 / 지도)
+# 5) 레이아웃: 컨트롤 | 순서 | 지도
 # ───────────────────────────────────────────────────────────
-col_ctrl, col_map = st.columns([1.5,4], gap="large")
+col_ctrl, col_order, col_map = st.columns([1.5,1,4], gap="large")
 
+# --- 컨트롤 카드
 with col_ctrl:
-    # 경로 설정 카드
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("🚗 경로 설정")
-    mode  = st.radio("", ["driving","walking"], horizontal=True)
+    mode  = st.radio("이동 모드", ["driving","walking"], horizontal=True)
     start = st.selectbox("출발지", gdf["name"].dropna().unique())
     wps   = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n!=start])
     st.markdown("</div>", unsafe_allow_html=True)
 
     # 버튼
-    st.markdown("<div style='display:flex; gap:12px;'>", unsafe_allow_html=True)
-    st.markdown("<button class='btn-primary'>✅ 경로 생성</button>", unsafe_allow_html=True)
-    st.markdown("<button class='btn-secondary'>🚫 초기화</button>", unsafe_allow_html=True)
-    st.markdown("</div><br>", unsafe_allow_html=True)
+    create_clicked = st.button("✅ 경로 생성", key="run", help="최적 경로 계산", args=None, kwargs=None)
+    clear_clicked  = st.button("🚫 초기화", key="clear")
+    # 스타일 클래스 부여
+    st.markdown("""<script>
+      document.querySelectorAll('.stButton>button')[0].classList.add('btn-create');
+      document.querySelectorAll('.stButton>button')[1].classList.add('btn-clear');
+    </script>""", unsafe_allow_html=True)
 
-    # 방문 순서 카드
+# --- 순서 카드
+with col_order:
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("🔢 방문 순서")
     if "order" in st.session_state:
-        for i, nm in enumerate(st.session_state.order,1):
-            st.markdown(f"<p style='margin:4px 0;'><strong>{i}.</strong> {nm}</p>", unsafe_allow_html=True)
+        for i,name in enumerate(st.session_state.order,1):
+            st.markdown(f"<p style='margin:4px 0;'><strong>{i}.</strong> {name}</p>", unsafe_allow_html=True)
     else:
-        st.markdown("<p style='color:#9E9E9E;'>아직 경로가 없습니다.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#999;'>경로 생성 후 순서가 표시됩니다.</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
+# --- 지도
 with col_map:
-    # 중심점
+    # 중심 계산
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
     if math.isnan(clat): clat, clon = 36.64, 127.48
 
-    # 그래프 캐시
+    # OSMnx 캐시
     @st.cache_data
     def load_graph(lat, lon):
         return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
@@ -139,38 +124,75 @@ with col_map:
         sp = ln.geometry.interpolate(ln.geometry.project(pt))
         snapped.append((sp.x, sp.y))
 
-    # Mapbox API
-    if st.button("dummy"): pass  # 실제 버튼 로직은 js로 바인딩 필요
+    # 초기화
+    if clear_clicked:
+        for k in ["segments","order","duration","distance"]:
+            st.session_state.pop(k, None)
 
-    # 지도 카드
+    # Mapbox API
+    if create_clicked and len(snapped)>=2:
+        segs, td, tl = [],0.0,0.0
+        for i in range(len(snapped)-1):
+            x1,y1 = snapped[i]; x2,y2 = snapped[i+1]
+            coord = f"{x1},{y1};{x2},{y2}"
+            if mode=="walking":
+                url,key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}","routes"
+                params={"geometries":"geojson","overview":"full","access_token":MAPBOX_TOKEN}
+            else:
+                url,key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}","trips"
+                params={
+                  "geometries":"geojson","overview":"full",
+                  "source":"first","destination":"last","roundtrip":"false",
+                  "access_token":MAPBOX_TOKEN
+                }
+            res = requests.get(url, params=params); data=res.json() if res.status_code==200 else {}
+            if data.get(key):
+                leg = data[key][0]
+                segs.append(leg["geometry"]["coordinates"])
+                td += leg["duration"]; tl += leg["distance"]
+        if segs:
+            st.session_state.order    = stops
+            st.session_state.duration = td/60
+            st.session_state.distance = tl/1000
+            st.session_state.segments = segs
+
+    # 지도 렌더링
     st.markdown("<div class='card' style='padding:8px;'>", unsafe_allow_html=True)
     m = folium.Map(location=[clat,clon], zoom_start=12)
     folium.GeoJson(boundary, style_function=lambda f:{
-        "color":"#26A69A","weight":2,"dashArray":"5,5","fillOpacity":0.05
+        "color":"#26A69A","weight":2,"dashArray":"4,4","fillOpacity":0.05
     }).add_to(m)
+
+    # 모든 포인트 (회색)
     mc = MarkerCluster().add_to(m)
-    for _,r in gdf.iterrows():
-        folium.Marker([r.lat,r.lon], popup=r.name,
-                      icon=folium.Icon(color="gray")).add_to(mc)
+    for _,row in gdf.iterrows():
+        folium.Marker([row.lat,row.lon], popup=row.name,
+                      icon=folium.Icon(color="gray", icon="info-sign")).add_to(mc)
+
+    # 스톱 (파랑 플래그)
     for idx,(x,y) in enumerate(snapped,1):
         folium.Marker([y,x],
-                      icon=folium.Icon(color="#2962FF",icon="flag"),
-                      tooltip=f"{idx}. {st.session_state.get('order',stops)[idx-1]}"
+            icon=folium.Icon(color="#008EAB",icon="flag"),
+            tooltip=f"{idx}. {st.session_state.get('order',stops)[idx-1]}"
         ).add_to(m)
+
+    # 세그먼트 (뒤→앞)
     if "segments" in st.session_state:
         palette = ["#FF5252","#FFEA00","#69F0AE","#40C4FF","#E040FB","#FF8F00"]
         for i in range(len(st.session_state.segments),0,-1):
             seg = st.session_state.segments[i-1]
-            folium.PolyLine(
-                [(pt[1],pt[0]) for pt in seg],
-                color=palette[(i-1)%len(palette)], weight=6, opacity=0.9
+            folium.PolyLine([(pt[1],pt[0]) for pt in seg],
+                            color=palette[(i-1)%len(palette)],
+                            weight=6, opacity=0.9
             ).add_to(m)
             mid = seg[len(seg)//2]
             folium.map.Marker([mid[1],mid[0]],
                 icon=DivIcon(html=f"<div style='background:{palette[(i-1)%len(palette)]};"
                                   "color:#fff;border-radius:50%;width:28px;height:28px;"
-                                  "line-height:28px;text-align:center;font-weight:600;'>{i}</div>")
+                                  "line-height:28px;text-align:center;font-weight:600;'>"
+                                  f"{i}</div>")
             ).add_to(m)
+        # 자동 줌
         allpts = [pt for seg in st.session_state.segments for pt in seg]
         lats = [p[1] for p in allpts]; lons = [p[0] for p in allpts]
         m.fit_bounds([[min(lats),min(lons)],[max(lats),max(lons)]])

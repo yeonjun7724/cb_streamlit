@@ -8,40 +8,75 @@ import osmnx as ox
 import requests, math
 from streamlit_folium import st_folium
 
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 # 1) 페이지 & CSS
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 st.set_page_config(page_title="청주시 경유지 최적 경로", layout="wide")
+
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-  html, body, [class*="css"] { font-family: 'Inter', sans-serif; background: #F9F9F9; color: #333; }
-  h1 { font-weight:600; }
-  .card { background:#FFF; border-radius:12px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:24px; }
-  .stButton>button { border-radius:8px; font-weight:600; padding:10px 24px; }
-  .btn-create { background: linear-gradient(90deg,#00C9A7,#008EAB); color:#FFF; }
-  .btn-clear  { background:#E63946; color:#FFF; }
-  .leaflet-container { border-radius:12px !important; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif; background: #F9F9F9; color: #333;
+  }
+  h1 { font-weight:700; }
+  h4 { font-weight:600; }
+  .card {
+    background: linear-gradient(135deg, #FFFFFF 0%, #F6F8FA 100%);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 24px;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  }
+  .stButton>button {
+    border: none;
+    border-radius: 8px;
+    font-weight:600;
+    padding: 12px 24px;
+    transition: all 0.2s ease-in-out;
+  }
+  .stButton>button:hover {
+    opacity: 0.85;
+    transform: translateY(-2px);
+  }
+  .btn-create {
+    background: linear-gradient(90deg,#00C9A7,#008EAB); color:#FFF;
+  }
+  .btn-clear  {
+    background:#E63946; color:#FFF;
+  }
+  .leaflet-container {
+    border-radius:12px !important;
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  }
+  .main .block-container {
+    padding-top: 2rem; padding-bottom: 2rem; padding-left: 3rem; padding-right: 3rem;
+  }
 </style>
 """, unsafe_allow_html=True)
 
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN_HERE"
 
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 # 2) 데이터 로드
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 gdf      = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 # 3) 헤더
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 st.markdown("<h1 style='text-align:center; padding:16px 0;'>📍 청주시 경유지 최적 경로</h1>", unsafe_allow_html=True)
 
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 # 4) 메트릭
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 dur  = st.session_state.get("duration", 0.0)
 dist = st.session_state.get("distance", 0.0)
 m1, m2 = st.columns(2, gap="small")
@@ -58,9 +93,9 @@ with m2:
     st.markdown(f"<h2 style='margin-top:8px;'>{dist:.2f} km</h2>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 # 5) 레이아웃: 컨트롤 | 순서 | 지도
-# ───────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────
 col_ctrl, col_order, col_map = st.columns([1.5,1,4], gap="large")
 
 # --- 컨트롤
@@ -74,7 +109,6 @@ with col_ctrl:
 
     create_clicked = st.button("✅ 경로 생성", key="run")
     clear_clicked  = st.button("🚫 초기화", key="clear")
-    # 버튼 색상
     st.markdown("""
       <script>
         const btns = document.querySelectorAll('.stButton>button');
@@ -96,7 +130,6 @@ with col_order:
 
 # --- 지도
 with col_map:
-    # 중심 계산
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
     if math.isnan(clat): clat, clon = 36.64, 127.48
@@ -148,7 +181,8 @@ with col_map:
             st.session_state.segments = segs
 
     st.markdown("<div class='card' style='padding:8px;'>", unsafe_allow_html=True)
-    m = folium.Map(location=[clat,clon], zoom_start=12)
+    m = folium.Map(location=[clat,clon], tiles='CartoDB positron', zoom_start=12)
+
     folium.GeoJson(boundary, style_function=lambda f:{
         "color":"#26A69A","weight":2,"dashArray":"4,4","fillOpacity":0.05
     }).add_to(m)
@@ -165,7 +199,7 @@ with col_map:
         ).add_to(m)
 
     if "segments" in st.session_state:
-        palette = ["#FF5252","#FFEA00","#69F0AE","#40C4FF","#E040FB","#FF8F00"]
+        palette = ["#FF6B6B","#FFD93D","#6BCB77","#4D96FF","#E96479","#F9A826"]
         for i in range(len(st.session_state.segments),0,-1):
             seg = st.session_state.segments[i-1]
             folium.PolyLine([(pt[1],pt[0]) for pt in seg],

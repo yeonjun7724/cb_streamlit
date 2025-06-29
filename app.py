@@ -30,6 +30,7 @@ with col1:
 with col2:
     waypoints = st.multiselect("🧭 경유지 선택", options)
 
+# 선택된 이름 리스트
 selected_names = []
 if start:
     selected_names.append(start)
@@ -68,7 +69,7 @@ if snapped_coords:
     st.write("📌 스냅된 좌표:", snapped_coords)
     st.info("👉 https://docs.mapbox.com/playground/optimization/ 로 확인")
 
-# ────────────── 6. Folium 지도 ──────────────
+# ────────────── 6. Folium 지도 생성 ──────────────
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 
 # — 경계
@@ -104,16 +105,26 @@ for idx, (lon, lat) in enumerate(snapped_coords, start=1):
         icon=folium.Icon(color=icon_color, prefix="glyphicon")
     ).add_to(snap_cluster)
 
-# — 이전에 생성된 라우팅 경로
+# — 기존 라우팅 경로
 if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
     folium.PolyLine([(lat, lon) for lon, lat in route], color="red", weight=4).add_to(m)
 
+# ──────────────  자동 줌: 스냅 좌표 범위에 맞추기 ──────────────
+if snapped_coords:
+    lats = [lat for _, lat in snapped_coords]
+    lons = [lon for lon, _ in snapped_coords]
+    sw = [min(lats), min(lons)]
+    ne = [max(lats), max(lons)]
+    m.fit_bounds([sw, ne])
+
 # — 레이어 컨트롤
 folium.LayerControl().add_to(m)
 
+# 지도 렌더링
 st_folium(m, height=600, width=800)
 
+# ────────────── 방문 순서 표시 ──────────────
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
@@ -126,9 +137,11 @@ with col1:
             st.warning("⚠️ 출발지/경유지 2개 이상을 선택해주세요!")
             st.stop()
 
+        # coords 문자열
         coords_str = ";".join(f"{lon},{lat}" for lon, lat in snapped_coords)
         st.write("▶ coords_str:", coords_str)
 
+        # Optimized-Trips 요청
         profile = f"mapbox/{mode}"
         url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{coords_str}"
         params = {
@@ -155,13 +168,15 @@ with col1:
             st.error("❌ 최적화 경로를 찾을 수 없습니다. 좌표나 토큰을 다시 확인해주세요.")
             st.stop()
 
-        # 라우팅 결과 세션에 저장
+        # 세션에 저장
         route = result["trips"][0]["geometry"]["coordinates"]
         st.session_state["routing_result"] = route
 
         waypoints = result["waypoints"]
-        visited = sorted(zip(waypoints, selected_names),
-                         key=lambda x: x[0]["waypoint_index"])
+        visited = sorted(
+            zip(waypoints, selected_names),
+            key=lambda x: x[0]["waypoint_index"]
+        )
         st.session_state["ordered_names"] = [name for _, name in visited]
 
         st.success(f"✅ 최적 경로 생성됨! 포인트 수: {len(route)}")

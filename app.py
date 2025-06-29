@@ -12,7 +12,7 @@ from openai import OpenAI
 import math
 
 # ──────────────────────────────
-# ✅ 기본 설정 & 스타일
+# ✅ 기본 세팅 + CSS 테마
 # ──────────────────────────────
 st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
 
@@ -28,7 +28,7 @@ h1,h2,h3,h4 { font-weight: 600; }
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ API 키
+# ✅ API KEY (조직 ID 필요 없음!)
 # ──────────────────────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 OPENAI_API_KEY = "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"
@@ -57,20 +57,25 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 레이아웃
+# ✅ 헤더
 # ──────────────────────────────
 st.markdown("<h1 style='text-align:center;'>📍 청주시 경유지 & GPT</h1>", unsafe_allow_html=True)
+
 col_left, col_right = st.columns([3, 1.5], gap="large")
 
 # ──────────────── 좌측: 경유지 경로 ────────────────
 with col_left:
     m1, m2 = st.columns(2, gap="small")
     with m1:
-        st.markdown("<div class='card'>⏱️ **예상 소요 시간**</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.markdown("⏱️ **예상 소요 시간**")
         st.subheader(f"{st.session_state['duration']:.1f} 분")
+        st.markdown("</div>", unsafe_allow_html=True)
     with m2:
-        st.markdown("<div class='card'>📏 **예상 이동 거리**</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.markdown("📏 **예상 이동 거리**")
         st.subheader(f"{st.session_state['distance']:.2f} km")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     col_ctrl, col_order, col_map = st.columns([1.5, 1, 4], gap="large")
 

@@ -15,12 +15,10 @@ MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVyd
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"] = gdf.geometry.x
 gdf["lat"] = gdf.geometry.y
-
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
 # ────────────── 2. Streamlit UI ──────────────
 st.title("📍 청주시 경유지 최적 경로 (안전 캐시 버전)")
-
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
 
 options = gdf["name"].dropna().unique().tolist()
@@ -51,7 +49,7 @@ def get_osm_graph(lat, lon):
 G = get_osm_graph(center_lat, center_lon)
 edges = ox.graph_to_gdfs(G, nodes=False)
 
-# ────────────── 5. Nearest 스냅 ──────────────
+# ────────────── 5. Nearest 스냅 (내부 계산만) ──────────────
 snapped_coords = []
 if selected_names:
     for name in selected_names:
@@ -61,19 +59,15 @@ if selected_names:
         nl = edges.loc[edges["distance"].idxmin()]
         sp = nl.geometry.interpolate(nl.geometry.project(pt))
         snapped_coords.append((sp.x, sp.y))
+# >>> 스냅된 좌표 출력 부분 제거 <<<
 
 # ────────────── 6. Folium 지도 생성 ──────────────
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
-
-# — 경계 GeoJson
 folium.GeoJson(
     boundary,
     name="청주시 경계",
     style_function=lambda x: {
-        "fillColor": "#ffffff",
-        "color": "#000000",
-        "weight": 1,
-        "fillOpacity": 0.1
+        "fillColor":"#ffffff","color":"#000000","weight":1,"fillOpacity":0.1
     }
 ).add_to(m)
 
@@ -82,24 +76,19 @@ all_cluster = MarkerCluster(name="All Tour Points").add_to(m)
 for _, row in gdf.iterrows():
     folium.Marker(
         location=[row["lat"], row["lon"]],
-        popup=row.get("name", ""),
-        tooltip=row.get("name", ""),
+        popup=row["name"],
+        tooltip=row["name"],
         icon=folium.Icon(color="lightgray", prefix="glyphicon")
     ).add_to(all_cluster)
 
 # — 기존 라우팅 경로
 if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
-    folium.PolyLine(
-        [(lat, lon) for lon, lat in route],
-        color="red", weight=4
-    ).add_to(m)
-    # 완료된 후 경로 범위로 줌
+    folium.PolyLine([(lat, lon) for lon, lat in route], color="red", weight=4).add_to(m)
+    # 경로 범위로 자동 줌
     lats = [lat for lon, lat in route]
     lons = [lon for lon, lat in route]
-    sw = [min(lats), min(lons)]
-    ne = [max(lats), max(lons)]
-    m.fit_bounds([sw, ne])
+    m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
 
 folium.LayerControl().add_to(m)
 st_folium(m, height=600, width=800)
@@ -119,61 +108,52 @@ with col1:
         coords_str = ";".join(f"{lon},{lat}" for lon, lat in snapped_coords)
 
         if mode == "walking":
-            # Directions API
+            # 보행: Directions API
             url = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coords_str}"
-            params = {
-                "geometries":   "geojson",
-                "overview":     "full",
-                "access_token": MAPBOX_TOKEN
-            }
+            params = {"geometries":"geojson","overview":"full","access_token":MAPBOX_TOKEN}
             key = "routes"
         else:
-            # Optimized-Trips API
+            # 운전: Optimized-Trips API
             url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coords_str}"
             params = {
-                "geometries":   "geojson",
-                "overview":     "full",
-                "source":       "first",
-                "destination":  "last",
-                "roundtrip":    "false",
-                "access_token": MAPBOX_TOKEN
+                "geometries":"geojson","overview":"full",
+                "source":"first","destination":"last","roundtrip":"false",
+                "access_token":MAPBOX_TOKEN
             }
             key = "trips"
 
-        response = requests.get(url, params=params)
-        result = response.json()
-        if response.status_code != 200 or not result.get(key):
+        resp = requests.get(url, params=params)
+        result = resp.json()
+        if resp.status_code != 200 or not result.get(key):
             st.error("❌ 경로를 생성할 수 없습니다. 좌표나 토큰, 모드를 확인해주세요.")
             st.stop()
 
-        # 경로 & 메트릭 추출
+        # 경로·메트릭 추출
         if mode == "walking":
             trip = result["routes"][0]
             route = trip["geometry"]["coordinates"]
-            duration = trip.get("duration", 0) / 60      # 분
-            distance = trip.get("distance", 0) / 1000    # km
+            duration = trip.get("duration",0)/60    # 분
+            distance = trip.get("distance",0)/1000  # km
             st.session_state["ordered_names"] = selected_names
         else:
             trip = result["trips"][0]
             route = trip["geometry"]["coordinates"]
-            duration = trip.get("duration", 0) / 60
-            distance = trip.get("distance", 0) / 1000
-            wayps = result["waypoints"]
-            visited = sorted(zip(wayps, selected_names),
-                             key=lambda x: x[0]["waypoint_index"])
-            st.session_state["ordered_names"] = [n for _, n in visited]
+            duration = trip.get("duration",0)/60
+            distance = trip.get("distance",0)/1000
+            wps = result["waypoints"]
+            visited = sorted(zip(wps, selected_names), key=lambda x:x[0]["waypoint_index"])
+            st.session_state["ordered_names"] = [n for _,n in visited]
 
         st.session_state["routing_result"] = route
 
-        # 소요 시간/거리 표시
-        st.write(f"⏱️ 예상 소요 시간: {duration:.1f} 분")
-        st.write(f"📏 예상 이동 거리: {distance:.2f} km")
+        # ← 여기가 추가된 부분: 소요시간/거리 모두 모드별로 표시
+        st.write(f"⏱️ 예상 소요 시간: {duration:.1f}분")
+        st.write(f"📏 예상 이동 거리: {distance:.2f}km")
 
         st.success("✅ 최적 경로 생성됨!")
         st.rerun()
-
 with col2:
     if st.button("🚫 초기화"):
-        for k in ["routing_result", "ordered_names"]:
-            st.session_state.pop(k, None)
+        for k in ["routing_result","ordered_names"]:
+            st.session_state.pop(k,None)
         st.rerun()

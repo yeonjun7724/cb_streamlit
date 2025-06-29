@@ -8,7 +8,7 @@ import streamlit as st
 import requests
 import math
 
-# ────────────── 0. 토큰 ──────────────
+# ────────────── 0. Mapbox 토큰 ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
 # ────────────── 1. 데이터 로드 ──────────────
@@ -18,7 +18,7 @@ gdf["lat"] = gdf.geometry.y
 
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-# ────────────── 2. UI 설정 ──────────────
+# ────────────── 2. Streamlit UI ──────────────
 st.title("📍 청주시 경유지 최적 경로 (안전 캐시 버전)")
 
 mode = st.radio("🚗 이동 모드 선택:", ["driving", "walking"])
@@ -30,7 +30,6 @@ with col1:
 with col2:
     waypoints = st.multiselect("🧭 경유지 선택", options)
 
-# 선택된 이름 리스트
 selected_names = []
 if start:
     selected_names.append(start)
@@ -59,11 +58,9 @@ if selected_names:
         row = gdf[gdf["name"] == name].iloc[0]
         pt = Point(row["lon"], row["lat"])
         edges["distance"] = edges.geometry.distance(pt)
-        nearest_line = edges.loc[edges["distance"].idxmin()]
-        nearest_point = nearest_line.geometry.interpolate(
-            nearest_line.geometry.project(pt)
-        )
-        snapped_coords.append((nearest_point.x, nearest_point.y))
+        nl = edges.loc[edges["distance"].idxmin()]
+        snapped_point = nl.geometry.interpolate(nl.geometry.project(pt))
+        snapped_coords.append((snapped_point.x, snapped_point.y))
 
 if snapped_coords:
     st.write("📌 스냅된 좌표:", snapped_coords)
@@ -72,7 +69,7 @@ if snapped_coords:
 # ────────────── 6. Folium 지도 생성 ──────────────
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 
-# — 경계
+# — 경계 GeoJson
 folium.GeoJson(
     boundary,
     name="청주시 경계",
@@ -110,7 +107,7 @@ if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
     folium.PolyLine([(lat, lon) for lon, lat in route], color="red", weight=4).add_to(m)
 
-# ──────────────  자동 줌: 스냅 좌표 범위에 맞추기 ──────────────
+# ──────────────  자동 줌인 설정 ──────────────
 if snapped_coords:
     lats = [lat for _, lat in snapped_coords]
     lons = [lon for lon, _ in snapped_coords]
@@ -118,72 +115,75 @@ if snapped_coords:
     ne = [max(lats), max(lons)]
     m.fit_bounds([sw, ne])
 
-# — 레이어 컨트롤
+# — 레이어 토글
 folium.LayerControl().add_to(m)
 
-# 지도 렌더링
+# — 지도 렌더링
 st_folium(m, height=600, width=800)
 
-# ────────────── 방문 순서 표시 ──────────────
+# — 방문 순서 출력
 if "ordered_names" in st.session_state:
     st.write("🔢 최적 방문 순서:", st.session_state["ordered_names"])
 
 # ────────────── 7. 버튼 로직 ──────────────
 col1, col2 = st.columns(2)
-
 with col1:
     if st.button("✅ 최적 경로 찾기"):
         if len(snapped_coords) < 2:
-            st.warning("⚠️ 출발지/경유지 2개 이상을 선택해주세요!")
+            st.warning("⚠️ 출발지/경유지 2개 이상 선택해주세요!")
             st.stop()
 
-        # coords 문자열
         coords_str = ";".join(f"{lon},{lat}" for lon, lat in snapped_coords)
         st.write("▶ coords_str:", coords_str)
 
-        # Optimized-Trips 요청
-        profile = f"mapbox/{mode}"
-        url = f"https://api.mapbox.com/optimized-trips/v1/{profile}/{coords_str}"
-        params = {
-            "geometries": "geojson",
-            "overview": "full",
-            "source": "first",
-            "roundtrip": "false",
-            "access_token": MAPBOX_TOKEN
-        }
+        if mode == "walking":
+            url = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coords_str}"
+            params = {
+                "geometries": "geojson",
+                "overview": "full",
+                "access_token": MAPBOX_TOKEN
+            }
+            key = "routes"
+        else:
+            url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coords_str}"
+            params = {
+                "geometries":   "geojson",
+                "overview":     "full",
+                "source":       "first",
+                "destination":  "last",
+                "roundtrip":    "false",
+                "access_token": MAPBOX_TOKEN
+            }
+            key = "trips"
+
         st.write("▶ 요청 URL:", url)
         st.write("▶ 요청 파라미터:", params)
 
         response = requests.get(url, params=params)
         st.write("▶ HTTP 상태 코드:", response.status_code)
-        try:
-            result = response.json()
-        except ValueError:
-            st.error("❌ JSON 디코딩 실패:\n" + response.text)
-            st.stop()
-
+        result = response.json()
         st.write("▶ Mapbox 응답:", result)
 
-        if response.status_code != 200 or not result.get("trips"):
-            st.error("❌ 최적화 경로를 찾을 수 없습니다. 좌표나 토큰을 다시 확인해주세요.")
+        if response.status_code != 200 or not result.get(key):
+            st.error("❌ 경로를 생성할 수 없습니다. 좌표나 토큰, 모드를 확인해주세요.")
             st.stop()
 
-        # 세션에 저장
-        route = result["trips"][0]["geometry"]["coordinates"]
+        if mode == "walking":
+            route = result["routes"][0]["geometry"]["coordinates"]
+            st.session_state["ordered_names"] = selected_names
+        else:
+            route = result["trips"][0]["geometry"]["coordinates"]
+            wayps = result["waypoints"]
+            visited = sorted(zip(wayps, selected_names),
+                             key=lambda x: x[0]["waypoint_index"])
+            st.session_state["ordered_names"] = [n for _, n in visited]
+
         st.session_state["routing_result"] = route
-
-        waypoints = result["waypoints"]
-        visited = sorted(
-            zip(waypoints, selected_names),
-            key=lambda x: x[0]["waypoint_index"]
-        )
-        st.session_state["ordered_names"] = [name for _, name in visited]
-
-        st.success(f"✅ 최적 경로 생성됨! 포인트 수: {len(route)}")
+        st.success("✅ 최적 경로 생성됨!")
         st.rerun()
 
 with col2:
     if st.button("🚫 초기화"):
-        for key in ["routing_result", "ordered_names"]:
-            st.session_state.pop(key, None)
+        for k in ["routing_result", "ordered_names"]:
+            st.session_state.pop(k, None)
         st.rerun()

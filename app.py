@@ -1,7 +1,6 @@
 import geopandas as gpd
 import folium
 from folium.plugins import MarkerCluster
-from shapely.geometry import Point
 import osmnx as ox
 from streamlit_folium import st_folium
 import streamlit as st
@@ -52,19 +51,16 @@ G = get_osm_graph(center_lat, center_lon)
 edges = ox.graph_to_gdfs(G, nodes=False)
 
 # ────────────── 5. Nearest 스냅 ──────────────
+# (내부 계산에만 사용하고, 화면에는 표시하지 않습니다)
 snapped_coords = []
 if selected_names:
     for name in selected_names:
         row = gdf[gdf["name"] == name].iloc[0]
-        pt = Point(row["lon"], row["lat"])
+        pt = row.geometry
         edges["distance"] = edges.geometry.distance(pt)
         nl = edges.loc[edges["distance"].idxmin()]
         snapped_point = nl.geometry.interpolate(nl.geometry.project(pt))
         snapped_coords.append((snapped_point.x, snapped_point.y))
-
-if snapped_coords:
-    st.write("📌 스냅된 좌표:", snapped_coords)
-    st.info("👉 https://docs.mapbox.com/playground/optimization/ 로 확인")
 
 # ────────────── 6. Folium 지도 생성 ──────────────
 m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
@@ -91,26 +87,19 @@ for _, row in gdf.iterrows():
         icon=folium.Icon(color="lightgray", prefix="glyphicon")
     ).add_to(all_cluster)
 
-# — 스냅된 좌표 클러스터
-snap_cluster = MarkerCluster(name="Snapped Points").add_to(m)
-for idx, (lon, lat) in enumerate(snapped_coords, start=1):
-    icon_color = "green" if idx == 1 else "blue"
-    folium.Marker(
-        location=[lat, lon],
-        popup=f"{idx}. {selected_names[idx-1]}",
-        tooltip=f"{idx}. {selected_names[idx-1]}",
-        icon=folium.Icon(color=icon_color, prefix="glyphicon")
-    ).add_to(snap_cluster)
-
 # — 기존 라우팅 경로
 if "routing_result" in st.session_state:
     route = st.session_state["routing_result"]
-    folium.PolyLine([(lat, lon) for lon, lat in route], color="red", weight=4).add_to(m)
+    folium.PolyLine(
+        [(lat, lon) for lon, lat in route],
+        color="red", weight=4
+    ).add_to(m)
 
-# ──────────────  자동 줌인 설정 ──────────────
-if snapped_coords:
-    lats = [lat for _, lat in snapped_coords]
-    lons = [lon for lon, _ in snapped_coords]
+# ────────────── 자동 줌인 설정 ──────────────
+if "routing_result" in st.session_state:
+    coords = st.session_state["routing_result"]
+    lats = [lat for lon, lat in coords]
+    lons = [lon for lon, lat in coords]
     sw = [min(lats), min(lons)]
     ne = [max(lats), max(lons)]
     m.fit_bounds([sw, ne])
@@ -134,17 +123,18 @@ with col1:
             st.stop()
 
         coords_str = ";".join(f"{lon},{lat}" for lon, lat in snapped_coords)
-        st.write("▶ coords_str:", coords_str)
 
         if mode == "walking":
+            # 보행: Directions API 사용
             url = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coords_str}"
             params = {
                 "geometries": "geojson",
-                "overview": "full",
+                "overview":   "full",
                 "access_token": MAPBOX_TOKEN
             }
             key = "routes"
         else:
+            # 운전: Optimized-Trips API 사용
             url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coords_str}"
             params = {
                 "geometries":   "geojson",
@@ -156,29 +146,37 @@ with col1:
             }
             key = "trips"
 
-        st.write("▶ 요청 URL:", url)
-        st.write("▶ 요청 파라미터:", params)
-
         response = requests.get(url, params=params)
-        st.write("▶ HTTP 상태 코드:", response.status_code)
         result = response.json()
-        st.write("▶ Mapbox 응답:", result)
 
         if response.status_code != 200 or not result.get(key):
             st.error("❌ 경로를 생성할 수 없습니다. 좌표나 토큰, 모드를 확인해주세요.")
             st.stop()
 
+        # 경로 및 메트릭 추출
         if mode == "walking":
-            route = result["routes"][0]["geometry"]["coordinates"]
+            trip = result["routes"][0]
+            route = trip["geometry"]["coordinates"]
+            duration = trip.get("duration", 0) / 60  # 분 단위
+            distance = trip.get("distance", 0) / 1000  # km 단위
             st.session_state["ordered_names"] = selected_names
         else:
-            route = result["trips"][0]["geometry"]["coordinates"]
+            trip = result["trips"][0]
+            route = trip["geometry"]["coordinates"]
+            duration = trip.get("duration", 0) / 60
+            distance = trip.get("distance", 0) / 1000
             wayps = result["waypoints"]
             visited = sorted(zip(wayps, selected_names),
                              key=lambda x: x[0]["waypoint_index"])
             st.session_state["ordered_names"] = [n for _, n in visited]
 
+        # 세션에 저장
         st.session_state["routing_result"] = route
+
+        # 소요 시간·거리 표시
+        st.write(f"⏱️ 예상 소요 시간: {duration:.1f} 분")
+        st.write(f"📏 예상 이동 거리: {distance:.2f} km")
+
         st.success("✅ 최적 경로 생성됨!")
         st.rerun()
 

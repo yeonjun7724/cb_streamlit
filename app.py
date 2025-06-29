@@ -11,27 +11,10 @@ from openai import OpenAI
 import math
 
 # ──────────────────────────────
-# ✅ 기본 설정 + CSS
-# ──────────────────────────────
-st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
-
-st.markdown("""
-<style>
-body { background: #f9fafb; color: #333; font-family: 'Inter', sans-serif; }
-h1,h2,h3,h4 { font-weight: 600; }
-.card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-.stButton>button { border-radius: 8px; font-weight: 600; padding: 10px 24px; }
-.btn-create { background: linear-gradient(90deg, #00C9A7, #008EAB); color: #FFF; }
-.btn-clear { background: #E63946; color: #FFF; }
-</style>
-""", unsafe_allow_html=True)
-
-# ──────────────────────────────
-# ✅ API KEY (직접 하드코딩)
+# ✅ API KEY 직접 전달
 # ──────────────────────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
-OPENAI_API_KEY = "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"
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key="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")
 
 # ──────────────────────────────
 # ✅ 데이터 로드
@@ -63,7 +46,7 @@ def format_cafes(cafes_df):
     cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
     result = []
     if len(cafes_df) == 0:
-        return "☕ 주변 카페 정보가 없어요. 숨은 보석 같은 공간을 찾아보세요 😊"
+        return "☕ 주변 카페 정보가 없어요. 숨은 보석 같은 공간을 걸어서 찾아보세요 😊"
     elif len(cafes_df) == 1:
         row = cafes_df.iloc[0]
         if all(x not in row["c_review"] for x in ["없음", "없읍"]):
@@ -72,7 +55,7 @@ def format_cafes(cafes_df):
             return f"☕ **추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"
     else:
         grouped = cafes_df.groupby(['c_name', 'c_value'])
-        result.append("☕ **주변 카페들** 🌼\n")
+        result.append("☕ **주변에 이런 카페들이 있어요** 🌼\n")
         for (name, value), group in grouped:
             reviews = group['c_review'].dropna().unique()
             reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
@@ -87,6 +70,8 @@ def format_cafes(cafes_df):
 # ──────────────────────────────
 # ✅ 레이아웃 시작
 # ──────────────────────────────
+st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
+
 st.markdown("<h1 style='text-align:center;'>📍 청주시 경유지 & GPT 가이드</h1>", unsafe_allow_html=True)
 col_left, col_right = st.columns([3, 1.5], gap="large")
 
@@ -96,33 +81,29 @@ col_left, col_right = st.columns([3, 1.5], gap="large")
 with col_left:
     m1, m2 = st.columns(2, gap="small")
     with m1:
-        st.markdown("<div class='card'>⏱️ **예상 소요 시간**</div>", unsafe_allow_html=True)
+        st.markdown("⏱️ **예상 소요 시간**")
         st.subheader(f"{st.session_state['duration']:.1f} 분")
     with m2:
-        st.markdown("<div class='card'>📏 **예상 이동 거리**</div>", unsafe_allow_html=True)
+        st.markdown("📏 **예상 이동 거리**")
         st.subheader(f"{st.session_state['distance']:.2f} km")
 
     col_ctrl, col_order, col_map = st.columns([1.5, 1, 4], gap="large")
 
     with col_ctrl:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.subheader("🚗 경로 설정")
         mode = st.radio("이동 모드", ["driving","walking"], horizontal=True)
         start = st.selectbox("출발지", gdf["name"].dropna().unique())
         wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != start])
         create_clicked = st.button("✅ 경로 생성")
         clear_clicked = st.button("🚫 초기화")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_order:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.subheader("🔢 방문 순서")
         if st.session_state["order"]:
             for i, name in enumerate(st.session_state["order"], 1):
                 st.markdown(f"{i}. {name}")
         else:
             st.markdown("🚫 경로 생성 후 표시됩니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_map:
         ctr = boundary.geometry.centroid
@@ -182,15 +163,12 @@ with col_left:
         if st.session_state["segments"]:
             for seg in st.session_state["segments"]:
                 folium.PolyLine([(pt[1], pt[0]) for pt in seg], color="red").add_to(m)
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st_folium(m, width="100%", height=600)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
 # 💬 우측: GPT 가이드
 # ------------------------------
 with col_right:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("🏛️ 청주 GPT 가이드")
     for msg in st.session_state["messages"][1:]:
         align = "right" if msg["role"] == "user" else "left"
@@ -237,4 +215,3 @@ with col_right:
                 blocks.append(f"🏛️ **{place}**\n\n{place_intro}\n\n{cafe_info}")
             final_response = "\n\n".join(blocks)
             st.session_state["messages"].append({"role": "assistant", "content": final_response})
-    st.markdown("</div>", unsafe_allow_html=True)

@@ -12,7 +12,7 @@ from openai import OpenAI
 import math
 
 # ──────────────────────────────
-# ✅ 기본 세팅 + CSS 테마
+# ✅ 기본 설정 + CSS 테마
 # ──────────────────────────────
 st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
 
@@ -28,11 +28,12 @@ h1,h2,h3,h4 { font-weight: 600; }
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ API KEY (조직 ID 필요 없음!)
+# ✅ API KEY
 # ──────────────────────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 OPENAI_API_KEY = "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"
-client = OpenAI(api_key=OPENAI_API_KEY)
+
+client = OpenAI(api_key=OPENAI_API_KEY)  # ✅ 직접 전달! 환경 변수 X
 
 # ──────────────────────────────
 # ✅ 데이터 로드

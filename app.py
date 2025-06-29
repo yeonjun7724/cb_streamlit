@@ -1,109 +1,70 @@
+# app.py
+
 import streamlit as st
 import geopandas as gpd
+import pandas as pd
+import requests
+import math
 import folium
 from folium.plugins import MarkerCluster
 from folium.features import DivIcon
 from shapely.geometry import Point
 import osmnx as ox
-import requests, math
 from streamlit_folium import st_folium
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from krwordrank.word import summarize_with_keywords
+from openai import OpenAI
 
-# ───────────────────────────────────────────────────────────
-# 1) 페이지 & CSS
-# ───────────────────────────────────────────────────────────
-st.set_page_config(page_title="청주시 경유지 최적 경로", layout="wide")
-st.markdown("""
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-  html, body, [class*="css"] { font-family: 'Inter', sans-serif; background: #F9F9F9; color: #333; }
-  h1 { font-weight:600; }
-  .card { background:#FFF; border-radius:12px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:24px; }
-  .stButton>button { border-radius:8px; font-weight:600; padding:10px 24px; }
-  .btn-create { background: linear-gradient(90deg,#00C9A7,#008EAB); color:#FFF; }
-  .btn-clear  { background:#E63946; color:#FFF; }
-  .leaflet-container { border-radius:12px !important; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
-</style>
-""", unsafe_allow_html=True)
+# ----------------------- 공통 설정 --------------------------
+st.set_page_config(page_title="청주시 문화관광+경유지 대시보드", layout="wide")
 
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
+MAPBOX_TOKEN = "여기에_당신의_토큰"
 
-# ───────────────────────────────────────────────────────────
-# 2) 데이터 로드
-# ───────────────────────────────────────────────────────────
-gdf      = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
-gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
-boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ───────────────────────────────────────────────────────────
-# 3) 헤더
-# ───────────────────────────────────────────────────────────
-st.markdown("<h1 style='text-align:center; padding:16px 0;'>📍 청주시 경유지 최적 경로</h1>", unsafe_allow_html=True)
+# ----------------------- 데이터 로드 --------------------------
+@st.cache_data
+def load_data():
+    return pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
 
-# ───────────────────────────────────────────────────────────
-# 4) 메트릭
-# ───────────────────────────────────────────────────────────
-dur  = st.session_state.get("duration", 0.0)
-dist = st.session_state.get("distance", 0.0)
-m1, m2 = st.columns(2, gap="small")
+@st.cache_data
+def load_sentiment_data():
+    return pd.read_excel("sentiment_cafe_data_all_20250628.xlsx")
 
-with m1:
-    st.markdown("<div class='card text-center'>", unsafe_allow_html=True)
-    st.markdown("<h4>⏱️ 예상 소요 시간</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='margin-top:8px;'>{dur:.1f} 분</h2>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+@st.cache_data
+def load_gis_data():
+    gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
+    gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
+    boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
+    return gdf, boundary
 
-with m2:
-    st.markdown("<div class='card text-center'>", unsafe_allow_html=True)
-    st.markdown("<h4>📏 예상 이동 거리</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='margin-top:8px;'>{dist:.2f} km</h2>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+data = load_data()
+sentiment_df = load_sentiment_data()
+gdf, boundary = load_gis_data()
 
-# ───────────────────────────────────────────────────────────
-# 5) 레이아웃: 컨트롤 | 순서 | 지도
-# ───────────────────────────────────────────────────────────
-col_ctrl, col_order, col_map = st.columns([1.5,1,4], gap="large")
+# ----------------------- 레이아웃 --------------------------
+col_left, col_right = st.columns([1, 1])
 
-# --- 컨트롤
-with col_ctrl:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🚗 경로 설정")
-    mode  = st.radio("이동 모드", ["driving","walking"], horizontal=True)
+# ----------------------- 좌측: 경유지 최적경로 --------------------------
+with col_left:
+    st.markdown("<h2>🚗 청주시 경유지 최적 경로</h2>", unsafe_allow_html=True)
+
+    # [경로 설정]
     start = st.selectbox("출발지", gdf["name"].dropna().unique())
-    wps   = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n!=start])
-    st.markdown("</div>", unsafe_allow_html=True)
+    wps   = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != start])
+    mode  = st.radio("이동 모드", ["driving","walking"], horizontal=True)
 
-    create_clicked = st.button("✅ 경로 생성", key="run")
+    create_clicked = st.button("✅ 경로 생성", key="route")
     clear_clicked  = st.button("🚫 초기화", key="clear")
-    # 버튼 색상
-    st.markdown("""
-      <script>
-        const btns = document.querySelectorAll('.stButton>button');
-        if(btns[0]) btns[0].classList.add('btn-create');
-        if(btns[1]) btns[1].classList.add('btn-clear');
-      </script>
-    """, unsafe_allow_html=True)
 
-# --- 방문 순서
-with col_order:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🔢 방문 순서")
-    if "order" in st.session_state:
-        for i,name in enumerate(st.session_state.order,1):
-            st.markdown(f"<p style='margin:4px 0;'><strong>{i}.</strong> {name}</p>", unsafe_allow_html=True)
-    else:
-        st.markdown("<p style='color:#999;'>경로 생성 후 순서 표시됩니다.</p>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- 지도
-with col_map:
-    # 중심 계산
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
-    if math.isnan(clat): clat, clon = 36.64, 127.48
 
     @st.cache_data
     def load_graph(lat, lon):
         return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
+
     G     = load_graph(clat, clon)
     edges = ox.graph_to_gdfs(G, nodes=False)
 
@@ -147,43 +108,59 @@ with col_map:
             st.session_state.distance = tl/1000
             st.session_state.segments = segs
 
-    st.markdown("<div class='card' style='padding:8px;'>", unsafe_allow_html=True)
-    m = folium.Map(location=[clat,clon], zoom_start=12)
-    folium.GeoJson(boundary, style_function=lambda f:{
-        "color":"#26A69A","weight":2,"dashArray":"4,4","fillOpacity":0.05
-    }).add_to(m)
+    dur = st.session_state.get("duration", 0.0)
+    dist= st.session_state.get("distance", 0.0)
+    st.write(f"⏱️ 예상 소요 시간: {dur:.1f}분 | 📏 이동 거리: {dist:.2f}km")
 
+    m = folium.Map(location=[clat, clon], zoom_start=12)
+    folium.GeoJson(boundary).add_to(m)
     mc = MarkerCluster().add_to(m)
     for _, row in gdf.iterrows():
-        folium.Marker([row.lat,row.lon], popup=row.name,
-                      icon=folium.Icon(color="gray")).add_to(mc)
-
+        folium.Marker([row.lat,row.lon], popup=row.name).add_to(mc)
     for idx,(x,y) in enumerate(snapped,1):
-        folium.Marker([y,x],
-            icon=folium.Icon(color="#008EAB",icon="flag"),
-            tooltip=f"{idx}. {st.session_state.get('order',stops)[idx-1]}"
-        ).add_to(m)
-
+        folium.Marker([y,x], icon=folium.Icon(color="blue"), tooltip=f"{idx}. {st.session_state.get('order',stops)[idx-1]}").add_to(m)
     if "segments" in st.session_state:
-        palette = ["#FF5252","#FFEA00","#69F0AE","#40C4FF","#E040FB","#FF8F00"]
-        for i in range(len(st.session_state.segments),0,-1):
-            seg = st.session_state.segments[i-1]
-            folium.PolyLine([(pt[1],pt[0]) for pt in seg],
-                            color=palette[(i-1)%len(palette)], weight=6, opacity=0.9
-            ).add_to(m)
-            mid = seg[len(seg)//2]
-            folium.map.Marker([mid[1],mid[0]],
-                icon=DivIcon(html=f"<div style='background:{palette[(i-1)%len(palette)]};"
-                                  "color:#fff;border-radius:50%;width:28px;height:28px;"
-                                  "line-height:28px;text-align:center;font-weight:600;'>"
-                                  f"{i}</div>")
-            ).add_to(m)
-        pts = [pt for seg in st.session_state.segments for pt in seg]
-        m.fit_bounds([[min(p[1] for p in pts), min(p[0] for p in pts)],
-                      [max(p[1] for p in pts), max(p[0] for p in pts)]])
-    else:
-        m.location=[clat,clon]; m.zoom_start=12
+        for seg in st.session_state.segments:
+            folium.PolyLine([(pt[1],pt[0]) for pt in seg], color="red").add_to(m)
+    st_folium(m, width="100%", height=600)
 
-    folium.LayerControl().add_to(m)
-    st_folium(m, width="100%", height=650)
-    st.markdown("</div>", unsafe_allow_html=True)
+# ----------------------- 우측: 관광지 감성 챗봇 --------------------------
+with col_right:
+    st.markdown("<h2>🏛️ 청주 문화관광 가이드 & 감정 분석</h2>", unsafe_allow_html=True)
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "system", "content": "당신은 청주 문화유산을 소개하는 관광 가이드입니다."}
+        ]
+
+    for msg in st.session_state.messages[1:]:
+        if msg["role"] == "user":
+            st.markdown(f"<div style='text-align:right;background:#dcf8c6;padding:8px;border-radius:10px'>{msg['content']}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div style='text-align:left;background:#fff;padding:8px;border-radius:10px'>{msg['content']}</div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    with st.form("chat_form"):
+        user_input = st.text_input("📍 관광지명을 입력해보세요")
+        submitted = st.form_submit_button("보내기")
+
+    if submitted and user_input:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.spinner("분석 중입니다..."):
+            places = [p.strip() for p in user_input.split(',')]
+            blocks = []
+            for place in places:
+                matched = data[data['t_name'].str.contains(place, na=False)]
+                gpt_place = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "청주 관광 가이드"},
+                        {"role": "user", "content": f"{place}의 역사와 포토스팟 알려줘"}
+                    ]
+                ).choices[0].message.content
+                blocks.append(f"### {place}\n{gpt_place}")
+            final_response = "\n\n".join(blocks)
+            st.session_state.messages.append({"role": "assistant", "content": final_response})
+
+# ----------------------- 끝 --------------------------

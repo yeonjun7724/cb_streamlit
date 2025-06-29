@@ -11,10 +11,12 @@ from openai import OpenAI
 import math
 
 # ──────────────────────────────
-# ✅ API KEY 직접 전달
+# ✅ API KEY 직접 변수로
 # ──────────────────────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
-client = OpenAI(api_key="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")
+gpt_api_key = "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"
+
+client = OpenAI(api_key=gpt_api_key)
 
 # ──────────────────────────────
 # ✅ 데이터 로드
@@ -68,7 +70,7 @@ def format_cafes(cafes_df):
         return "\n\n".join(result)
 
 # ──────────────────────────────
-# ✅ 레이아웃 시작
+# ✅ Streamlit 기본 레이아웃
 # ──────────────────────────────
 st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
 

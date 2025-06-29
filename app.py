@@ -10,9 +10,11 @@ from streamlit_folium import st_folium
 from openai import OpenAI
 import math
 
-# ✅ 👉 반드시 그대로 사용 (당신 실키)
+# ✅ 👉 Mapbox 토큰 직접 변수로
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
-client = OpenAI(api_key="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")
+
+# ✅ 👉 GPT Key는 secrets.toml에서 안전하게 불러오기
+client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
 # ✅ 데이터 로드
 gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
@@ -37,7 +39,7 @@ def format_cafes(cafes_df):
     cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
     result = []
     if len(cafes_df) == 0:
-        return "☕ 현재 이 관광지 주변에 등록된 카페 정보는 없어요.\n근처 숨은 공간을 걸어보세요 😊"
+        return "☕ 현재 이 관광지 주변에 등록된 카페 정보가 없어요.\n근처 숨은 공간을 걸어보세요 😊"
     elif len(cafes_df) == 1:
         row = cafes_df.iloc[0]
         if all(x not in row["c_review"] for x in ["없음", "없읍"]):
@@ -70,10 +72,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center;'>📍 청주시 경로 & GPT 가이드</h2>", unsafe_allow_html=True)
 
-# ✅ UX 흐름: 좌 ➜ 지도 ➜ GPT
 col_left, col_map, col_gpt = st.columns([1.5, 3, 2], gap="large")
 
+# ------------------------------
 # 🚗 경로 설정 + KPI + 방문 순서
+# ------------------------------
 with col_left:
     st.subheader("🚗 경로 설정")
     mode = st.radio("이동 모드", ["driving","walking"], horizontal=True)
@@ -94,7 +97,9 @@ with col_left:
     st.markdown("<div class='small-text'>📏 예상 이동 거리</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bold-number'>{st.session_state['distance']:.2f} km</div>", unsafe_allow_html=True)
 
+# ------------------------------
 # 🗺️ 지도
+# ------------------------------
 with col_map:
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
@@ -154,7 +159,9 @@ with col_map:
             folium.PolyLine([(pt[1], pt[0]) for pt in seg], color="red").add_to(m)
     st_folium(m, width="100%", height=500)
 
-# 💬 GPT
+# ------------------------------
+# 💬 GPT 가이드
+# ------------------------------
 with col_gpt:
     st.subheader("🏛️ GPT 관광 가이드")
     if st.button("🔁 방문 순서 가져오기"):
@@ -170,7 +177,7 @@ with col_gpt:
             weather_intro = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "당신은 청주 관광 가이드"},
+                    {"role": "system", "content": "청주 관광 가이드"},
                     {"role": "user", "content": "청주 날씨, 추천 복장, 팁, 계절 알려줘"}
                 ]
             ).choices[0].message.content
@@ -181,22 +188,14 @@ with col_gpt:
                 place_intro = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": "감성적인 청주 가이드"},
+                        {"role": "system", "content": "감성적인 청주 관광 가이드"},
                         {"role": "user", "content": f"{place} 역사, 계절, 포토스팟, 코멘트"}
                     ]
                 ).choices[0].message.content
                 if not matched.empty:
                     cafes = matched[['c_name','c_value','c_review']].drop_duplicates()
                     cafe_info = format_cafes(cafes)
-                    t_value = matched['t_value'].dropna().unique()
-                    score_text = f"\n\n📊 관광지 평점: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
-                    reviews = matched['t_review'].dropna().unique()
-                    reviews = [r for r in reviews if all(x not in r for x in ["없음","없읍"])]
-                    review_text = "\n".join([f"“{r}”" for r in reviews[:3]]) if len(reviews) else ""
-                    review_block = f"\n\n💬 방문자 리뷰\n{review_text}" if review_text else ""
                 else:
-                    score_text = ""
-                    review_block = ""
                     cafe_info = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[
@@ -205,7 +204,7 @@ with col_gpt:
                         ]
                     ).choices[0].message.content
 
-                blocks.append(f"🏛️ **{place}**\n{score_text}\n\n{place_intro}{review_block}\n\n{cafe_info}")
+                blocks.append(f"🏛️ **{place}**\n\n{place_intro}\n\n{cafe_info}")
             final_response = "\n\n".join(blocks)
             st.session_state["messages"].append({"role": "assistant", "content": final_response})
 

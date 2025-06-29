@@ -16,8 +16,7 @@ from openai import OpenAI
 # 1) 기본 설정
 # ───────────────────────────────
 st.set_page_config(page_title="청주시 문화관광 대시보드", layout="wide")
-
-MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"  # ← 본인 토큰으로 교체하세요
+MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"  # ← 반드시 본인 Mapbox 토큰으로 교체!
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ───────────────────────────────
@@ -40,25 +39,18 @@ gdf, boundary = load_gis_data()
 # ───────────────────────────────
 # 3) session_state 안전 초기화
 # ───────────────────────────────
-if "route_order" not in st.session_state:
-    st.session_state["route_order"] = []
-
-if "route_segments" not in st.session_state:
-    st.session_state["route_segments"] = []
-
-if "route_duration" not in st.session_state:
-    st.session_state["route_duration"] = 0.0
-
-if "route_distance" not in st.session_state:
-    st.session_state["route_distance"] = 0.0
-
-if "chat_messages" not in st.session_state:
-    st.session_state["chat_messages"] = [
-        {"role": "system", "content": "당신은 청주 문화유산을 소개하는 공손한 관광 가이드입니다."}
-    ]
+for key, default in {
+    "route_order": [],
+    "route_segments": [],
+    "route_duration": 0.0,
+    "route_distance": 0.0,
+    "chat_messages": [{"role": "system", "content": "당신은 청주 문화유산을 소개하는 관광 가이드입니다."}]
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # ───────────────────────────────
-# 4) 레이아웃 컬럼
+# 4) 좌우 레이아웃
 # ───────────────────────────────
 col_left, col_right = st.columns([1, 1])
 
@@ -75,6 +67,7 @@ with col_left:
     create_clicked = st.button("✅ 경로 생성", key="create_route")
     clear_clicked = st.button("🚫 초기화", key="clear_route")
 
+    # 그래프 로드
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
 
@@ -85,6 +78,7 @@ with col_left:
     G = load_graph(clat, clon)
     edges = ox.graph_to_gdfs(G, nodes=False)
 
+    # 경로 스냅
     stops = [start] + wps
     snapped = []
     for nm in stops:
@@ -95,12 +89,14 @@ with col_left:
         sp = ln.geometry.interpolate(ln.geometry.project(pt))
         snapped.append((sp.x, sp.y))
 
+    # 초기화 버튼
     if clear_clicked:
         st.session_state["route_order"] = []
         st.session_state["route_segments"] = []
         st.session_state["route_duration"] = 0.0
         st.session_state["route_distance"] = 0.0
 
+    # 경로 생성
     if create_clicked and len(snapped) >= 2:
         segs, td, tl = [], 0.0, 0.0
         for i in range(len(snapped) - 1):
@@ -135,6 +131,7 @@ with col_left:
     dist = st.session_state.get("route_distance", 0.0)
     st.write(f"⏱️ 예상 소요 시간: {dur:.1f}분 | 📏 이동 거리: {dist:.2f}km")
 
+    # 지도
     m = folium.Map(location=[clat, clon], zoom_start=12)
     folium.GeoJson(boundary).add_to(m)
     mc = MarkerCluster().add_to(m)
@@ -142,8 +139,8 @@ with col_left:
     for _, row in gdf.iterrows():
         folium.Marker([row.lat, row.lon], popup=row.name).add_to(mc)
 
+    order = st.session_state.get("route_order", stops)
     for idx, (x, y) in enumerate(snapped, 1):
-        order = st.session_state.get("route_order", stops)
         label = order[idx - 1] if idx - 1 < len(order) else ""
         folium.Marker([y, x], tooltip=f"{idx}. {label}",
                       icon=folium.Icon(color="blue")).add_to(m)
@@ -155,12 +152,12 @@ with col_left:
     st_folium(m, width="100%", height=600)
 
 # ───────────────────────────────
-# 6) 우측: 관광지 챗봇
+# 6) 우측: 관광지 GPT 챗봇
 # ───────────────────────────────
 with col_right:
     st.header("🏛️ 청주 문화관광 가이드")
 
-    for msg in st.session_state.get("chat_messages", [])[1:]:
+    for msg in st.session_state["chat_messages"][1:]:
         if msg["role"] == "user":
             st.markdown(
                 f"<div style='text-align:right;background:#dcf8c6;padding:8px;border-radius:10px'>{msg['content']}</div>",
@@ -173,7 +170,7 @@ with col_right:
     st.divider()
 
     with st.form("chat_form"):
-        user_input = st.text_input("📍 방문하고 싶은 관광지를 입력하세요")
+        user_input = st.text_input("📍 관광지명을 입력하세요 (예: 청주 신선주)")
         submitted = st.form_submit_button("보내기")
 
     if submitted and user_input:
@@ -186,9 +183,14 @@ with col_right:
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": "청주 관광 가이드"},
-                        {"role": "user", "content": f"{place}의 역사와 계절감, 포토스팟을 알려줘."}
+                        {"role": "user", "content": f"{place}의 역사와 계절감, 포토스팟, 추천 코멘트 알려줘."}
                     ]
                 ).choices[0].message.content
                 blocks.append(f"### {place}\n{gpt_place}")
             final_response = "\n\n".join(blocks)
             st.session_state["chat_messages"].append({"role": "assistant", "content": final_response})
+
+# ───────────────────────────────
+# 7) 디버깅용 세션 상태 확인 (원하면)
+# ───────────────────────────────
+# st.write("✅ session_state:", dict(st.session_state))

@@ -31,7 +31,7 @@ with st.sidebar:
 
 # ────────────── 2. UI Controls ──────────────
 st.title("📍 청주시 경유지 최적 경로")
-mode  = st.radio("🚗 이동 모드 선택", ["driving","walking"], horizontal=True)
+mode  = st.radio("🚗 이동 모드 선택", ["driving", "walking"], horizontal=True)
 start = st.selectbox("🏁 출발지 선택", gdf["name"].dropna().unique())
 wps   = st.multiselect("🧭 경유지 선택", [n for n in gdf["name"].dropna().unique() if n != start])
 
@@ -88,14 +88,14 @@ if run and len(snapped) >= 2:
         coord_str = f"{x1},{y1};{x2},{y2}"
         if mode == "walking":
             url    = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord_str}"
-            params = {"geometries":"geojson","overview":"full","access_token":MAPBOX_TOKEN}
+            params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
             key    = "routes"
         else:
             url    = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord_str}"
             params = {
-                "geometries":"geojson","overview":"full",
-                "source":"first","destination":"last","roundtrip":"false",
-                "access_token":MAPBOX_TOKEN
+                "geometries": "geojson", "overview": "full",
+                "source": "first", "destination": "last", "roundtrip": "false",
+                "access_token": MAPBOX_TOKEN
             }
             key    = "trips"
         r = requests.get(url, params=params)
@@ -123,8 +123,8 @@ folium.GeoJson(
     boundary,
     name="행정경계",
     style_function=lambda f: {
-        "color":"#2A9D8F","weight":3,"dashArray":"5,5",
-        "fillColor":"#2A9D8F","fillOpacity":0.1
+        "color": "#2A9D8F", "weight": 3, "dashArray": "5,5",
+        "fillColor": "#2A9D8F", "fillOpacity": 0.1
     }
 ).add_to(m)
 
@@ -145,66 +145,37 @@ for idx, (x, y) in enumerate(snapped, 1):
         tooltip=f"{idx}. {st.session_state.get('order', stops)[idx-1]}"
     ).add_to(m)
 
-# 세그먼트 그리기 & 스타일 숫자 라벨 + 동적 범례
+# 세그먼트 그리기 & 스타일 숫자 라벨
 if "segments" in st.session_state:
-    colors = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4"]
-    # draw segments and labels
-    for i, seg in enumerate(st.session_state.segments, 1):
+    colors = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4"]
+    segs = st.session_state.segments
+    # 낮은 순서가 위로 오도록, 뒤에서부터 그리기
+    for i in range(len(segs), 0, -1):
+        seg = segs[i - 1]
         folium.PolyLine(
             locations=[(pt[1], pt[0]) for pt in seg],
-            color=colors[(i-1)%len(colors)],
+            color=colors[(i-1) % len(colors)],
             weight=6, opacity=0.8
         ).add_to(m)
-        mid = seg[len(seg)//2]
-        # styled number
+        mid = seg[len(seg) // 2]
         html = f"""
         <div style="
-            background: rgba(255, 255, 255, 0.8);
-            border: 2px solid {colors[(i-1)%len(colors)]};
+            background: {colors[(i-1)%len(colors)]};
+            color: white;
             border-radius: 50%;
-            width:28px; height:28px;
-            line-height:28px;
+            width:24px; height:24px;
+            line-height:24px;
             text-align:center;
-            font-size:16px;
+            font-size:14px;
             font-weight:bold;
-            color:{colors[(i-1)%len(colors)]};
+            box-shadow: 1px 1px 4px rgba(0,0,0,0.4);
         ">{i}</div>
         """
         folium.map.Marker([mid[1], mid[0]], icon=DivIcon(html=html)).add_to(m)
-    # auto zoom
-    all_pts = [pt for seg in st.session_state.segments for pt in seg]
+    # 자동 줌
+    all_pts = [pt for seg in segs for pt in seg]
     lats = [p[1] for p in all_pts]; lons = [p[0] for p in all_pts]
     m.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
-
-    # dynamic legend
-    legend_html = """
-    <div style="
-        position: fixed;
-        bottom: 50px; left: 50px;
-        background: white; padding: 10px;
-        border: 2px solid gray; z-index:9999;
-        font-size:14px;
-    ">
-      <b>경로 범례</b><br>
-    """
-    order = st.session_state.order
-    for i in range(len(order)-1):
-        frm, to = order[i], order[i+1]
-        color = colors[i % len(colors)]
-        legend_html += f'''
-        <div style="display:flex;align-items:center;margin:4px 0;">
-          <span style="
-            background:{color};
-            width:12px; height:12px;
-            display:inline-block;
-            margin-right:6px;
-          "></span>
-          <span>{i+1}. {frm} → {to}</span>
-        </div>
-        '''
-    legend_html += "</div>"
-    m.get_root().html.add_child(folium.Element(legend_html))
-
 else:
     # no route: zoom to start
     sx, sy = snapped[0]

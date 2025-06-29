@@ -10,10 +10,10 @@ from streamlit_folium import st_folium
 from openai import OpenAI
 import math
 
-# ✅ 👉 Mapbox 토큰 직접 변수로
+# ✅ Mapbox 토큰 (직접 변수)
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
-# ✅ 👉 GPT Key는 secrets.toml에서 안전하게 불러오기
+# ✅ OpenAI 클라이언트 (secrets.toml에서 가져오기)
 client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
 # ✅ 데이터 로드
@@ -22,6 +22,7 @@ gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 data = pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
 
+# ✅ Session State 초기화
 DEFAULTS = {
     "order": [],
     "segments": [],
@@ -39,7 +40,7 @@ def format_cafes(cafes_df):
     cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
     result = []
     if len(cafes_df) == 0:
-        return "☕ 현재 이 관광지 주변에 등록된 카페 정보가 없어요.\n근처 숨은 공간을 걸어보세요 😊"
+        return "☕ 주변 카페 정보가 없어요. 숨은 보석 같은 공간을 걸어서 찾아보세요 😊"
     elif len(cafes_df) == 1:
         row = cafes_df.iloc[0]
         if all(x not in row["c_review"] for x in ["없음", "없읍"]):
@@ -70,12 +71,12 @@ st.markdown("""
   .visit-list { font-size: 14px; margin: 2px 0; }
 </style>
 """, unsafe_allow_html=True)
-st.markdown("<h2 style='text-align:center;'>📍 청주시 경로 & GPT 가이드</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>📍 청주시 경유지 최적 경로 & GPT 가이드</h2>", unsafe_allow_html=True)
 
 col_left, col_map, col_gpt = st.columns([1.5, 3, 2], gap="large")
 
 # ------------------------------
-# 🚗 경로 설정 + KPI + 방문 순서
+# 🚗 좌측: 경로 설정 + KPI
 # ------------------------------
 with col_left:
     st.subheader("🚗 경로 설정")
@@ -85,6 +86,7 @@ with col_left:
     col_btn1, col_btn2 = st.columns(2)
     create_clicked = col_btn1.button("✅ 경로 생성")
     clear_clicked = col_btn2.button("🚫 초기화")
+
     st.markdown("---")
     st.markdown("<div class='small-text'>🔢 방문 순서</div>", unsafe_allow_html=True)
     if st.session_state["order"]:
@@ -98,7 +100,7 @@ with col_left:
     st.markdown(f"<div class='bold-number'>{st.session_state['distance']:.2f} km</div>", unsafe_allow_html=True)
 
 # ------------------------------
-# 🗺️ 지도
+# 🗺️ 중앙: 지도
 # ------------------------------
 with col_map:
     ctr = boundary.geometry.centroid
@@ -160,7 +162,7 @@ with col_map:
     st_folium(m, width="100%", height=500)
 
 # ------------------------------
-# 💬 GPT 가이드
+# 💬 우측: GPT 가이드
 # ------------------------------
 with col_gpt:
     st.subheader("🏛️ GPT 관광 가이드")

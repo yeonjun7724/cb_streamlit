@@ -1,196 +1,194 @@
+import streamlit as st
 import geopandas as gpd
 import folium
 from folium.plugins import MarkerCluster
 from folium.features import DivIcon
 from shapely.geometry import Point
 import osmnx as ox
+import requests, math
 from streamlit_folium import st_folium
-import streamlit as st
-import requests
-import math
 
-# ────────────── Page Config ──────────────
-st.set_page_config(layout="wide", page_title="청주시 경유지 최적 경로")
+# ───────────────────────────────────────────────────────────
+# 1. Page & CSS Config
+# ───────────────────────────────────────────────────────────
+st.set_page_config(page_title="청주시 경유지 최적 경로", layout="wide")
+st.markdown("""
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+  html, body, [class*="css"] { font-family: 'Roboto', sans-serif; background: #121212; color: #E0E0E0; }
+  h1, h2, h3, h4, h5 { color: #FFFFFF; margin: 0; }
+  .card {
+      background: #1E1E1E;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      padding: 20px;
+      margin-bottom: 24px;
+  }
+  .stButton > button {
+      font-weight: 500;
+      border-radius: 8px;
+      padding: 10px 20px;
+      transition: background 0.2s, transform 0.1s;
+  }
+  .stButton > button:hover { opacity: 0.9; transform: translateY(-1px); }
+  .stButton > button:active { transform: translateY(1px); }
+  .primary { background-color: #2962FF; color: #fff !important; }
+  .secondary { background-color: #D32F2F; color: #fff !important; }
+  .leaflet-container { border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); }
+  .stSelectbox>label, .stMultiselect>label, .stRadio>label { color: #B0BEC5 !important; }
+</style>
+""", unsafe_allow_html=True)
 
-# ────────────── Mapbox Token ──────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 
-# ────────────── 스타일 정의 ──────────────
-CARD_STYLE = """
-background: rgba(255,255,255,0.95);
-border-radius: 12px;
-box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-padding: 20px;
-margin-bottom: 20px;
-"""
-BUTTON_CSS = """
-<style>
-button[kind="primary"] {background-color:#1f77b4; color:#fff;}
-button[kind="secondary"] {background-color:#e74c3c; color:#fff;}
-</style>
-"""
-
-# ────────────── 데이터 로드 ──────────────
-gdf      = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
+# ───────────────────────────────────────────────────────────
+# 2. Data Load
+# ───────────────────────────────────────────────────────────
+gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
 gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 
-# ────────────── 페이지 헤더 ──────────────
-st.markdown("<h1 style='text-align:center; color:white;'>📍 청주시 경유지 최적 경로</h1>", unsafe_allow_html=True)
-st.markdown("---")
+# ───────────────────────────────────────────────────────────
+# 3. Header
+# ───────────────────────────────────────────────────────────
+st.markdown("<h1 style='text-align:center; padding:16px 0;'>📍 청주시 경유지 최적 경로</h1>", unsafe_allow_html=True)
 
-# ────────────── 상단 메트릭 ──────────────
+# ───────────────────────────────────────────────────────────
+# 4. Top Metrics
+# ───────────────────────────────────────────────────────────
 dur  = st.session_state.get("duration", 0.0)
 dist = st.session_state.get("distance", 0.0)
-m1, m2, _ = st.columns([1,1,4], gap="small")
-m1.markdown(f"""
-<div style="{CARD_STYLE}">
-  <h4 style="margin:0;">⏱️ 예상 소요 시간</h4>
-  <p style="font-size:24px; margin:4px 0 0;">{dur:.1f} 분</p>
-</div>
-""", unsafe_allow_html=True)
-m2.markdown(f"""
-<div style="{CARD_STYLE}">
-  <h4 style="margin:0;">📏 예상 이동 거리</h4>
-  <p style="font-size:24px; margin:4px 0 0;">{dist:.2f} km</p>
-</div>
-""", unsafe_allow_html=True)
+c1, c2, c3 = st.columns([1,1,4], gap="small")
 
-# ────────────── 본문: 컨트롤 + 지도 ──────────────
-ctrl_col, map_col = st.columns([1.5, 4], gap="large")
+with c1:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<h4>⏱️ 예상 소요 시간</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='margin-top:8px;'>{dur:.1f} 분</h2>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-with ctrl_col:
-    st.markdown(f"<div style='{CARD_STYLE}'>", unsafe_allow_html=True)
-    st.subheader("🚗 경로 설정")
+with c2:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<h4>📏 예상 이동 거리</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='margin-top:8px;'>{dist:.2f} km</h2>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ───────────────────────────────────────────────────────────
+# 5. Main: Controls & Map
+# ───────────────────────────────────────────────────────────
+ctrl, mp = st.columns([1.5, 4], gap="large")
+
+with ctrl:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<h3>🚗 경로 설정</h3>", unsafe_allow_html=True)
     mode  = st.radio("", ["driving","walking"], horizontal=True)
     start = st.selectbox("출발지", gdf["name"].dropna().unique())
     wps   = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n!=start])
     st.write("")  # spacer
-    st.markdown(BUTTON_CSS, unsafe_allow_html=True)
-    run   = st.button("✅ 경로 생성", key="run", type="primary")
-    clear = st.button("🚫 초기화", key="clear", type="secondary")
+    run   = st.button("✅ 경로 생성", key="run", help="최적 경로 계산", args=None, kwargs=None)
+    clear = st.button("🚫 초기화", key="clear", help="초기화")
     st.markdown("</div>", unsafe_allow_html=True)
 
-with map_col:
-    # 중심점 계산
+with mp:
+    # compute center
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
-    if math.isnan(clat):
-        clat, clon = 36.64, 127.48
+    if math.isnan(clat): clat, clon = 36.64, 127.48
 
-    # OSMnx 그래프 캐시
+    # OSMnx graph cache
     @st.cache_data
     def load_graph(lat, lon):
         return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
     G     = load_graph(clat, clon)
     edges = ox.graph_to_gdfs(G, nodes=False)
 
-    # 스톱 좌표 스냅
-    stops   = [start] + wps
+    # snap points
+    stops = [start] + wps
     snapped = []
     for name in stops:
-        row = gdf[gdf["name"]==name].iloc[0]
-        pt  = Point(row.lon, row.lat)
+        r = gdf[gdf["name"]==name].iloc[0]
+        pt = Point(r.lon, r.lat)
         edges["d"] = edges.geometry.distance(pt)
         ln = edges.loc[edges["d"].idxmin()]
         sp = ln.geometry.interpolate(ln.geometry.project(pt))
         snapped.append((sp.x, sp.y))
 
-    # 초기화 처리
     if clear:
         for k in ["segments","order","duration","distance"]:
             st.session_state.pop(k, None)
 
-    # Mapbox API 호출 (각 구간)
-    if run and len(snapped) >= 2:
-        segments = []
-        total_dur = 0.0
-        total_dist= 0.0
+    # call Mapbox API per leg
+    if run and len(snapped)>=2:
+        segs, td, tl = [],0.0,0.0
         for i in range(len(snapped)-1):
-            x1,y1 = snapped[i]
-            x2,y2 = snapped[i+1]
+            x1,y1 = snapped[i]; x2,y2 = snapped[i+1]
             coord = f"{x1},{y1};{x2},{y2}"
             if mode=="walking":
-                url, key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}", "routes"
+                url,key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}","routes"
                 params = {"geometries":"geojson","overview":"full","access_token":MAPBOX_TOKEN}
             else:
-                url, key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}", "trips"
+                url,key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}","trips"
                 params = {
                     "geometries":"geojson","overview":"full",
                     "source":"first","destination":"last","roundtrip":"false",
                     "access_token":MAPBOX_TOKEN
                 }
-            r = requests.get(url, params=params)
-            j = r.json()
-            if r.status_code == 200 and j.get(key):
-                leg = j[key][0]
-                segments.append(leg["geometry"]["coordinates"])
-                total_dur  += leg["duration"]
-                total_dist += leg["distance"]
-            else:
-                st.error("⚠️ 경로 생성 실패: 입력을 확인해주세요.")
-                segments = []
-                break
-        if segments:
+            res = requests.get(url, params=params); data = res.json() if res.status_code==200 else {}
+            if data.get(key):
+                leg = data[key][0]
+                segs.append(leg["geometry"]["coordinates"])
+                td += leg["duration"]; tl += leg["distance"]
+        if segs:
             st.session_state.order    = stops
-            st.session_state.duration = total_dur / 60
-            st.session_state.distance = total_dist / 1000
-            st.session_state.segments = segments
+            st.session_state.duration = td/60
+            st.session_state.distance = tl/1000
+            st.session_state.segments = segs
 
-    # 지도 컨테이너
-    st.markdown(f"<div style='{CARD_STYLE} padding:8px;'>", unsafe_allow_html=True)
+    # render map
+    st.markdown("<div class='card' style='padding:8px;'>", unsafe_allow_html=True)
     m = folium.Map(location=[clat, clon], zoom_start=12)
-    folium.GeoJson(
-        boundary,
-        style_function=lambda f: {
-            "color":"#2A9D8F","weight":2,"dashArray":"5,5",
-            "fillOpacity":0.1
-        }
-    ).add_to(m)
+    folium.GeoJson(boundary, style_function=lambda f:{
+        "color":"#26A69A","weight":2,"dashArray":"5,5","fillOpacity":0.1
+    }).add_to(m)
 
-    # 모든 지점 (회색)
+    # all points
     mc = MarkerCluster().add_to(m)
-    for _, r in gdf.iterrows():
-        folium.Marker([r.lat, r.lon], popup=r.name,
-                      icon=folium.Icon(color="gray")).add_to(mc)
+    for _,row in gdf.iterrows():
+        folium.Marker([row.lat,row.lon], popup=row.name,
+                      icon=folium.Icon(color="gray",icon="info-sign")).add_to(mc)
 
-    # 선택된 스톱 (파란색)
+    # stops
     for idx,(x,y) in enumerate(snapped,1):
-        folium.Marker(
-            [y,x],
-            icon=folium.Icon(color="blue", icon="info-sign"),
+        folium.Marker([y,x],
+            icon=folium.Icon(color="blue",icon="flag"),
             tooltip=f"{idx}. {st.session_state.get('order',stops)[idx-1]}"
         ).add_to(m)
 
-    # 세그먼트 (뒤에서부터 그려 낮은 순서 위)
+    # draw segments reversed
     if "segments" in st.session_state:
-        colors = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4"]
-        for i in range(len(st.session_state.segments), 0, -1):
+        cols = ["#FF5252","#FFEA00","#69F0AE","#40C4FF","#E040FB","#FF8F00"]
+        for i in range(len(st.session_state.segments),0,-1):
             seg = st.session_state.segments[i-1]
             folium.PolyLine(
-                locations=[(pt[1],pt[0]) for pt in seg],
-                color=colors[(i-1)%len(colors)],
-                weight=6, opacity=0.8
+                [(pt[1],pt[0]) for pt in seg],
+                color=cols[(i-1)%len(cols)], weight=6, opacity=0.9
             ).add_to(m)
             mid = seg[len(seg)//2]
-            html = f"""
-            <div style="
-                background:{colors[(i-1)%len(colors)]};
-                color:white; border-radius:50%;
-                width:28px;height:28px;line-height:28px;
-                text-align:center;font-size:16px;
-                font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.3);
-            ">{i}</div>
-            """
-            folium.map.Marker([mid[1],mid[0]], icon=DivIcon(html=html)).add_to(m)
-        # 자동 줌
-        pts = [pt for seg in st.session_state.segments for pt in seg]
-        lats = [p[1] for p in pts]; lons = [p[0] for p in pts]
+            folium.map.Marker([mid[1],mid[0]],
+                icon=DivIcon(html=f"""<div style="
+                    background:{cols[(i-1)%len(cols)]};
+                    color:#fff;border-radius:50%;
+                    width:30px;height:30px;line-height:30px;
+                    text-align:center;font-size:16px;font-weight:600;
+                    box-shadow:0 2px 4px rgba(0,0,0,0.4);
+                ">{i}</div>""")
+            ).add_to(m)
+        # fit bounds
+        allpts = [pt for seg in st.session_state.segments for pt in seg]
+        lats = [p[1] for p in allpts]; lons = [p[0] for p in allpts]
         m.fit_bounds([[min(lats),min(lons)],[max(lats),max(lons)]])
     else:
         sx,sy = snapped[0]
-        m.location = [sy, sx]
-        m.zoom_start = 15
+        m.location=[sy,sx]; m.zoom_start=15
 
     folium.LayerControl().add_to(m)
     st_folium(m, width="100%", height=650)

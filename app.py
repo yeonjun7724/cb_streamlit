@@ -11,11 +11,10 @@ from openai import OpenAI
 import math
 
 # ──────────────────────────────
-# ✅ API KEY 직접 변수로
+# ✅ API KEY 직접 변수로 관리
 # ──────────────────────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"
 gpt_api_key = "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"
-
 client = OpenAI(api_key=gpt_api_key)
 
 # ──────────────────────────────
@@ -27,7 +26,7 @@ boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 data = pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
 
 # ──────────────────────────────
-# ✅ session_state 초기화
+# ✅ Session 초기화
 # ──────────────────────────────
 DEFAULTS = {
     "order": [],
@@ -70,9 +69,55 @@ def format_cafes(cafes_df):
         return "\n\n".join(result)
 
 # ──────────────────────────────
-# ✅ Streamlit 기본 레이아웃
+# ✅ 페이지 설정 + 디자인 CSS
 # ──────────────────────────────
 st.set_page_config(page_title="청주시 경유지 & GPT", layout="wide")
+st.markdown("""
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+  html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+    background: #f9fafb;
+    color: #333333;
+  }
+  h1,h2,h3,h4 { font-weight: 600; }
+  .card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+  }
+  .stButton>button {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 10px 24px;
+  }
+  .btn-create {
+    background: linear-gradient(90deg,#00C9A7,#008EAB);
+    color: #ffffff;
+    border: none;
+  }
+  .btn-clear {
+    background: #E63946;
+    color: #ffffff;
+    border: none;
+  }
+  .leaflet-container {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+</style>
+""", unsafe_allow_html=True)
+
+# 버튼 그라디언트 스타일 적용
+st.markdown("""
+<script>
+  const btns = window.parent.document.querySelectorAll('.stButton > button');
+  if (btns[0]) btns[0].classList.add('btn-create');
+  if (btns[1]) btns[1].classList.add('btn-clear');
+</script>
+""", unsafe_allow_html=True)
 
 st.markdown("<h1 style='text-align:center;'>📍 청주시 경유지 & GPT 가이드</h1>", unsafe_allow_html=True)
 col_left, col_right = st.columns([3, 1.5], gap="large")
@@ -83,29 +128,33 @@ col_left, col_right = st.columns([3, 1.5], gap="large")
 with col_left:
     m1, m2 = st.columns(2, gap="small")
     with m1:
-        st.markdown("⏱️ **예상 소요 시간**")
+        st.markdown("<div class='card text-center'>⏱️ **예상 소요 시간**</div>", unsafe_allow_html=True)
         st.subheader(f"{st.session_state['duration']:.1f} 분")
     with m2:
-        st.markdown("📏 **예상 이동 거리**")
+        st.markdown("<div class='card text-center'>📏 **예상 이동 거리**</div>", unsafe_allow_html=True)
         st.subheader(f"{st.session_state['distance']:.2f} km")
 
     col_ctrl, col_order, col_map = st.columns([1.5, 1, 4], gap="large")
 
     with col_ctrl:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.subheader("🚗 경로 설정")
         mode = st.radio("이동 모드", ["driving","walking"], horizontal=True)
         start = st.selectbox("출발지", gdf["name"].dropna().unique())
         wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != start])
         create_clicked = st.button("✅ 경로 생성")
         clear_clicked = st.button("🚫 초기화")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_order:
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.subheader("🔢 방문 순서")
         if st.session_state["order"]:
             for i, name in enumerate(st.session_state["order"], 1):
-                st.markdown(f"{i}. {name}")
+                st.markdown(f"<p style='margin:4px 0;'><strong>{i}.</strong> {name}</p>", unsafe_allow_html=True)
         else:
-            st.markdown("🚫 경로 생성 후 표시됩니다.")
+            st.markdown("<p style='color:#999;'>경로 생성 후 순서 표시됩니다.</p>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_map:
         ctr = boundary.geometry.centroid
@@ -165,16 +214,19 @@ with col_left:
         if st.session_state["segments"]:
             for seg in st.session_state["segments"]:
                 folium.PolyLine([(pt[1], pt[0]) for pt in seg], color="red").add_to(m)
-        st_folium(m, width="100%", height=600)
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st_folium(m, width="100%", height=650)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
 # 💬 우측: GPT 가이드
 # ------------------------------
 with col_right:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("🏛️ 청주 GPT 가이드")
     for msg in st.session_state["messages"][1:]:
         align = "right" if msg["role"] == "user" else "left"
-        bg = "#dcf8c6" if msg["role"] == "user" else "#fff"
+        bg = "#dcf8c6" if msg["role"] == "user" else "#ffffff"
         st.markdown(
             f"<div style='text-align:{align};background:{bg};padding:8px;border-radius:10px;margin-bottom:6px'>{msg['content']}</div>",
             unsafe_allow_html=True)
@@ -217,3 +269,4 @@ with col_right:
                 blocks.append(f"🏛️ **{place}**\n\n{place_intro}\n\n{cafe_info}")
             final_response = "\n\n".join(blocks)
             st.session_state["messages"].append({"role": "assistant", "content": final_response})
+    st.markdown("</div>", unsafe_allow_html=True)

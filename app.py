@@ -216,3 +216,19 @@ with col_right:
                 messages=st.session_state["chat_messages"]
             ).choices[0].message.content
             st.session_state["chat_messages"].append({"role":"assistant","content":gpt_reply})
+
+    if st.button("📌 현재 경로로 GPT 추천 받기"):
+        route = st.session_state.get("order", [])
+        dur = st.session_state.get("duration", 0.0)
+        dist = st.session_state.get("distance", 0.0)
+        if route:
+            prompt = f"다음은 청주시 관광 경로입니다:\n방문 순서: {', '.join(route)}\n예상 소요 시간: {dur:.1f}분, 예상 거리: {dist:.2f}km.\n각 방문지마다 추천 여행 팁과 계절별 사진 포인트를 알려줘."
+            st.session_state["chat_messages"].append({"role":"user","content":prompt})
+            with st.spinner("GPT가 경로 기반 추천을 작성 중..."):
+                gpt_reply = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=st.session_state["chat_messages"]
+                ).choices[0].message.content
+                st.session_state["chat_messages"].append({"role":"assistant","content":gpt_reply})
+        else:
+            st.warning("⚠️ 먼저 경로를 생성해주세요!")

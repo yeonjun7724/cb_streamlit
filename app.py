@@ -5,175 +5,227 @@ from folium.plugins import MarkerCluster
 from folium.features import DivIcon
 from shapely.geometry import Point
 import osmnx as ox
-import requests
-import math
+import requests, math
 from streamlit_folium import st_folium
+
 import pandas as pd
+import re
 from openai import OpenAI
-from html import escape
 
 # ──────────────────────────────────────────────
-# 기본 페이지 세팅
+# 1) 페이지 & CSS
 # ──────────────────────────────────────────────
-st.set_page_config(page_title="청주시 통합 관광 시스템", layout="wide")
+st.set_page_config(page_title="청주시 경유지 & 관광 챗봇", layout="wide")
 
-# ──────────────────────────────────────────────
-# 탭 생성
-# ──────────────────────────────────────────────
-tab1, tab2 = st.tabs(["📍 경로 최적화", "🏞️ 문화 관광가이드"])
+st.markdown("""
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif; background: #F9F9F9; color: #333;
+  }
+  h1, h2, h4 { font-weight:700; }
+  .card {
+    background: linear-gradient(135deg, #FFFFFF 0%, #F6F8FA 100%);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+  }
+  .stButton>button {
+    border: none;
+    border-radius: 8px;
+    font-weight:600;
+    padding: 12px 24px;
+  }
+  .btn-create {
+    background: linear-gradient(90deg,#00C9A7,#008EAB); color:#FFF;
+  }
+  .btn-clear  {
+    background:#E63946; color:#FFF;
+  }
+  .leaflet-container {
+    border-radius:12px !important;
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  }
+</style>
+""", unsafe_allow_html=True)
 
-# ──────────────────────────────────────────────
-# 탭 1: 경로 최적화
-# ──────────────────────────────────────────────
-with tab1:
-    try:
-        gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
-        boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
-
-        gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
-
-        MAPBOX_TOKEN = "YOUR_MAPBOX_TOKEN"
-
-        dur = st.session_state.get("tour_duration", 0.0)
-        dist = st.session_state.get("tour_distance", 0.0)
-
-        st.metric("예상 소요 시간(분)", f"{dur:.1f}")
-        st.metric("예상 이동 거리(km)", f"{dist:.2f}")
-
-        start = st.selectbox("출발지 선택", gdf["name"].dropna().unique())
-        wps = st.multiselect("경유지 선택", [n for n in gdf["name"].dropna().unique() if n != start])
-        mode = st.radio("이동 모드", ["driving", "walking"], horizontal=True)
-
-        create_clicked = st.button("경로 생성")
-        clear_clicked = st.button("초기화")
-
-        ctr = boundary.geometry.centroid
-        clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
-        if pd.isna(clat) or pd.isna(clon):
-            clat, clon = 36.64, 127.48
-
-        @st.cache_data(allow_output_mutation=True)
-        def load_graph(lat, lon):
-            return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
-
-        G = load_graph(clat, clon)
-        edges = ox.graph_to_gdfs(G, nodes=False)
-
-        stops = [start] + wps
-        snapped = []
-        for nm in stops:
-            r = gdf[gdf["name"] == nm].iloc[0]
-            if pd.isna(r.lon) or pd.isna(r.lat):
-                continue
-            pt = Point(r.lon, r.lat)
-            edges["d"] = edges.geometry.distance(pt)
-            ln = edges.loc[edges["d"].idxmin()]
-            sp = ln.geometry.interpolate(ln.geometry.project(pt))
-            snapped.append((sp.x, sp.y))
-
-        if clear_clicked:
-            for k in ["tour_segments", "tour_order", "tour_duration", "tour_distance"]:
-                st.session_state.pop(k, None)
-
-        if create_clicked and len(snapped) >= 2:
-            segs, td, tl = [], 0.0, 0.0
-            for i in range(len(snapped) - 1):
-                x1, y1 = snapped[i]
-                x2, y2 = snapped[i + 1]
-                coord = f"{x1},{y1};{x2},{y2}"
-                if mode == "walking":
-                    url = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}"
-                    key = "routes"
-                    params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
-                else:
-                    url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}"
-                    key = "trips"
-                    params = {
-                        "geometries": "geojson",
-                        "overview": "full",
-                        "source": "first",
-                        "destination": "last",
-                        "roundtrip": "false",
-                        "access_token": MAPBOX_TOKEN,
-                    }
-                try:
-                    r = requests.get(url, params=params)
-                    data = r.json() if r.status_code == 200 else {}
-                except Exception as e:
-                    st.warning(f"요청 오류: {e}")
-                    data = {}
-
-                if data.get(key):
-                    leg = data[key][0]
-                    segs.append(leg["geometry"]["coordinates"])
-                    td += leg["duration"]
-                    tl += leg["distance"]
-
-            if segs:
-                st.session_state.tour_order = stops
-                st.session_state.tour_duration = td / 60
-                st.session_state.tour_distance = tl / 1000
-                st.session_state.tour_segments = segs
-
-        m = folium.Map(location=[clat, clon], tiles='CartoDB positron', zoom_start=12)
-        folium.GeoJson(boundary).add_to(m)
-
-        mc = MarkerCluster().add_to(m)
-        for _, row in gdf.iterrows():
-            folium.Marker([row.lat, row.lon], popup=row.name).add_to(mc)
-
-        if "tour_segments" in st.session_state:
-            palette = ["#FF6B6B", "#FFD93D", "#6BCB77", "#4D96FF"]
-            for i, seg in enumerate(reversed(st.session_state.tour_segments), 1):
-                folium.PolyLine([(pt[1], pt[0]) for pt in seg], color=palette[(i - 1) % len(palette)], weight=6).add_to(m)
-                mid = seg[len(seg) // 2]
-                safe_html = escape(str(i))
-                folium.map.Marker(
-                    [mid[1], mid[0]],
-                    icon=DivIcon(html=f"<div style='background:{palette[(i-1)%len(palette)]};"
-                                      "color:#fff;border-radius:50%;width:28px;height:28px;"
-                                      "line-height:28px;text-align:center;font-weight:600;'>"
-                                      f"{safe_html}</div>")
-                ).add_to(m)
-
-        st_folium(m, width="100%", height=600)
-
-    except Exception as e:
-        st.error(f"에러 발생: {e}")
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q"  # 교체하세요
+client = OpenAI(api_key=st.secrets["sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4"])
 
 # ──────────────────────────────────────────────
-# 탭 2: 문화 관광가이드
+# 2) 데이터 로드
 # ──────────────────────────────────────────────
-with tab2:
-    api_key = st.secrets.get("OPENAI_API_KEY")
-    if not api_key:
-        st.error("❌ OpenAI API 키가 없습니다.")
-        st.stop()
-    client = OpenAI(api_key=api_key)
+gdf = gpd.read_file("cb_tour.shp").to_crs(epsg=4326)
+gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
+boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
+data = pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
 
-    try:
-        data = pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
-    except:
-        st.error("cj_data_final.csv 파일이 없습니다.")
-        st.stop()
+# ──────────────────────────────────────────────
+# 3) 메인 타이틀
+# ──────────────────────────────────────────────
+st.title("📍 청주시 경유지 최적 경로 & 문화 관광 가이드 🏞️")
 
-    def format_cafes(cafes_df):
-        cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
-        if len(cafes_df) == 0:
-            return "☕ 현재 주변에 등록된 카페 정보가 없어요."
-        elif len(cafes_df) == 1:
-            row = cafes_df.iloc[0]
-            if all(x not in row["c_review"] for x in ["없음", "없읍"]):
-                return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  
-{row['c_review']}"""
+# ──────────────────────────────────────────────
+# 4) 최적 경로 섹션
+# ──────────────────────────────────────────────
+st.subheader("🚗 경유지 최적 경로")
+
+dur = st.session_state.get("duration", 0.0)
+dist = st.session_state.get("distance", 0.0)
+m1, m2 = st.columns(2)
+m1.metric("예상 소요 시간 (분)", f"{dur:.1f}")
+m2.metric("예상 이동 거리 (km)", f"{dist:.2f}")
+
+col_ctrl, col_order, col_map = st.columns([1.5, 1, 4], gap="large")
+
+with col_ctrl:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("경로 설정")
+    mode  = st.radio("이동 모드", ["driving","walking"], horizontal=True)
+    start = st.selectbox("출발지", gdf["name"].dropna().unique())
+    wps   = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != start])
+    create_clicked = st.button("✅ 경로 생성", key="run")
+    clear_clicked  = st.button("🚫 초기화", key="clear")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("""
+      <script>
+        const btns = document.querySelectorAll('.stButton>button');
+        if(btns[0]) btns[0].classList.add('btn-create');
+        if(btns[1]) btns[1].classList.add('btn-clear');
+      </script>
+    """, unsafe_allow_html=True)
+
+with col_order:
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.subheader("방문 순서")
+    if "order" in st.session_state:
+        for i, name in enumerate(st.session_state.order, 1):
+            st.markdown(f"{i}. {name}")
+    else:
+        st.info("경로 생성 후 순서가 표시됩니다.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with col_map:
+    ctr = boundary.geometry.centroid
+    clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
+    if math.isnan(clat): clat, clon = 36.64, 127.48
+
+    @st.cache_data
+    def load_graph(lat, lon):
+        return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
+    G = load_graph(clat, clon)
+    edges = ox.graph_to_gdfs(G, nodes=False)
+
+    stops = [start] + wps
+    snapped = []
+    for nm in stops:
+        r = gdf[gdf["name"] == nm].iloc[0]
+        pt = Point(r.lon, r.lat)
+        edges["d"] = edges.geometry.distance(pt)
+        ln = edges.loc[edges["d"].idxmin()]
+        sp = ln.geometry.interpolate(ln.geometry.project(pt))
+        snapped.append((sp.x, sp.y))
+
+    if clear_clicked:
+        for k in ["segments", "order", "duration", "distance"]:
+            st.session_state.pop(k, None)
+
+    if create_clicked and len(snapped) >= 2:
+        segs, td, tl = [], 0.0, 0.0
+        for i in range(len(snapped) - 1):
+            x1, y1 = snapped[i]; x2, y2 = snapped[i + 1]
+            coord = f"{x1},{y1};{x2},{y2}"
+            if mode == "walking":
+                url, key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}", "routes"
+                params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
             else:
-                return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"""
-        else:
-            result = ["☕ **주변 추천 카페**"]
-            for _, row in cafes_df.iterrows():
-                result.append(f"- **{row['c_name']}** (⭐ {row['c_value']})")
-            return "\n".join(result)
+                url, key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}", "trips"
+                params = {
+                    "geometries": "geojson", "overview": "full",
+                    "source": "first", "destination": "last", "roundtrip": "false",
+                    "access_token": MAPBOX_TOKEN
+                }
+            r = requests.get(url, params=params); data=r.json() if r.status_code==200 else {}
+            if data.get(key):
+                leg = data[key][0]
+                segs.append(leg["geometry"]["coordinates"])
+                td += leg["duration"]; tl += leg["distance"]
+        if segs:
+            st.session_state.order = stops
+            st.session_state.duration = td / 60
+            st.session_state.distance = tl / 1000
+            st.session_state.segments = segs
 
-    st.write("✅ format_cafes 함수 오류 없이 준비 완료!")
+    m = folium.Map(location=[clat, clon], tiles='CartoDB positron', zoom_start=12)
+    folium.GeoJson(boundary).add_to(m)
+    mc = MarkerCluster().add_to(m)
+    for _, row in gdf.iterrows():
+        folium.Marker([row.lat, row.lon], popup=row.name).add_to(mc)
+    for idx, (x, y) in enumerate(snapped, 1):
+        folium.Marker([y, x],
+                      icon=folium.Icon(color="#008EAB", icon="flag"),
+                      tooltip=f"{idx}. {st.session_state.get('order', stops)[idx - 1]}"
+        ).add_to(m)
+    if "segments" in st.session_state:
+        palette = ["#FF6B6B", "#FFD93D", "#6BCB77"]
+        for i, seg in enumerate(st.session_state.segments, 1):
+            folium.PolyLine([(pt[1], pt[0]) for pt in seg],
+                            color=palette[i % len(palette)], weight=5).add_to(m)
+    st_folium(m, width="100%", height=600)
 
-3333331
+# ──────────────────────────────────────────────
+# 5) 청주 문화 관광 가이드 챗봇
+# ──────────────────────────────────────────────
+st.markdown("---")
+st.subheader("💬 청주 문화 관광 가이드 챗봇")
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "system", "content": "당신은 청주 문화유산을 소개하는 공손한 챗봇입니다."}
+    ]
+
+# 이전 대화 출력
+for msg in st.session_state.messages[1:]:
+    if msg["role"] == "user":
+        st.markdown(f"<div style='text-align:right;background:#dcf8c6;border-radius:10px;padding:8px;'>{msg['content']}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div style='background:#fff;border-radius:10px;padding:8px;'>{msg['content']}</div>", unsafe_allow_html=True)
+
+with st.form("chat_form"):
+    user_input = st.text_input("관광지 이름을 쉼표로 입력해주세요.")
+    submitted = st.form_submit_button("보내기")
+
+def format_cafes(cafes_df):
+    cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
+    result = []
+    if len(cafes_df) == 0:
+        return "☕ 주변에 등록된 카페 정보가 없어요."
+    elif len(cafes_df) == 1:
+        row = cafes_df.iloc[0]
+        return f"- **{row['c_name']}** (⭐ {row['c_value']})"
+    else:
+        for _, row in cafes_df.iterrows():
+            result.append(f"- **{row['c_name']}** (⭐ {row['c_value']})")
+        return "\n".join(result)
+
+if submitted and user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    places = [p.strip() for p in user_input.split(",")]
+    blocks = []
+    for place in places:
+        matched = data[data["t_name"].str.contains(place, na=False)]
+        gpt_response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "당신은 청주 여행 가이드입니다."},
+                {"role": "user", "content": f"{place}를 따뜻하게 소개해 주세요."}
+            ]
+        ).choices[0].message.content
+
+        cafe_info = format_cafes(matched[["c_name", "c_value", "c_review"]]) if not matched.empty else "추천 카페 정보 없음"
+        blocks.append(f"🏛️ {place}\n{gpt_response}\n\n{cafe_info}")
+
+    final_response = "\n\n".join(blocks)
+    st.session_state.messages.append({"role": "assistant", "content": final_response})

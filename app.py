@@ -174,5 +174,6 @@ with tab2:
                 result.append(f"- **{row['c_name']}** (⭐ {row['c_value']})")
             return "\n".join(result)
 
-    st.write("GPT 응답 예시는 별도 구현에 맞게 처리하세요.")
+    st.write("✅ format_cafes 함수 오류 없이 준비 완료!")
 
+3333331

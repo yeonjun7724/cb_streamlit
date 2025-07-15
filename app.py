@@ -271,7 +271,7 @@ with tab2:
             elif len(cafes_df) == 1:
                 row = cafes_df.iloc[0]
                 if all(x not in row["c_review"] for x in ["없음", "없읍"]):
-                    return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  \n"{row['c_review']}"""
+                    return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  \n"{row['c_review']}""""
                 else:
                     return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"""
 

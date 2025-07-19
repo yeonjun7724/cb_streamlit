@@ -75,7 +75,7 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 페이지 설정 & 카드 컨테이너 스타일
+# ✅ 페이지 설정 & 스타일
 # ──────────────────────────────
 st.set_page_config(
     page_title="청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼", 
@@ -138,22 +138,6 @@ st.markdown("""
         border-radius: 2px;
     }
     
-    /* 카드 컨테이너 - 강제로 모든 요소를 감싸기 */
-    .card-container {
-        background: white;
-        border: 1px solid #e1e4e8;
-        border-radius: 16px;
-        padding: 24px;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .card-container:hover {
-        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-    }
-    
     /* 섹션 제목 */
     .section-title {
         font-size: 1.4rem;
@@ -165,41 +149,6 @@ st.markdown("""
         gap: 10px;
         padding-bottom: 12px;
         border-bottom: 2px solid #f1f3f4;
-    }
-    
-    /* 강제로 Streamlit 요소들을 카드 안에 포함 */
-    .card-container .stRadio,
-    .card-container .stSelectbox,
-    .card-container .stMultiSelect,
-    .card-container .stButton,
-    .card-container .element-container,
-    .card-container div[data-testid="stVerticalBlock"],
-    .card-container div[data-testid="column"] {
-        position: relative;
-        z-index: 2;
-        background: transparent !important;
-    }
-    
-    /* 버튼 스타일 */
-    .stButton > button {
-        background: white;
-        color: #374151;
-        border: 2px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 10px 16px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        width: 100%;
-        height: 44px;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    .stButton > button:hover {
-        background: #f9fafb;
-        border-color: #3b82f6;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        transform: translateY(-1px);
     }
     
     /* 방문 순서 스타일 */
@@ -288,36 +237,85 @@ st.markdown("""
     }
     
     /* 폼 스타일 */
-    .stSelectbox label, .stMultiSelect label, .stRadio label {
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .form-label {
         font-size: 0.9rem;
         color: #374151;
         font-weight: 600;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+        display: block;
     }
     
-    .stRadio > div {
-        flex-direction: row;
-        gap: 20px;
-        margin-top: 8px;
+    .radio-group {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
     }
     
-    .stTextInput > div > div > input,
-    .stSelectbox > div > div > select {
-        border: 2px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 8px 12px;
+    .radio-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         font-size: 0.9rem;
-        transition: border-color 0.2s ease;
+        color: #374151;
     }
     
-    .stTextInput > div > div > input:focus,
-    .stSelectbox > div > div > select:focus {
+    .btn-group {
+        display: flex;
+        gap: 8px;
+        margin-top: 20px;
+    }
+    
+    .btn {
+        flex: 1;
+        padding: 10px 16px;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        background: white;
+        color: #374151;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .btn:hover {
+        background: #f9fafb;
         border-color: #3b82f6;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     
-    /* 지도 스타일 */
-    .leaflet-container {
-        border-radius: 12px !important;
+    .btn-success {
+        background: #10b981;
+        color: white;
+        border-color: #10b981;
+    }
+    
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+        border-color: #ef4444;
+    }
+    
+    /* 지도 컨테이너 */
+    .map-placeholder {
+        width: 100%;
+        height: 400px;
+        background: #f8fafc;
+        border: 2px dashed #d1d5db;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        font-size: 1rem;
     }
     
     /* 간격 조정 */
@@ -325,14 +323,6 @@ st.markdown("""
         padding-top: 1rem;
         padding-bottom: 1rem;
         max-width: 1400px;
-    }
-    
-    /* 성공/경고 메시지 */
-    .stSuccess, .stWarning, .stError {
-        border-radius: 8px;
-        border: none;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 0.9rem;
     }
     
     /* GPT 섹션 스타일 */
@@ -414,14 +404,46 @@ st.markdown('''
 col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 
 # ------------------------------
-# ✅ [좌] 경로 설정 카드 - 컨테이너로 완전히 감싸기
+# ✅ [좌] 경로 설정 카드 - 완전 HTML로 생성
 # ------------------------------
 with col1:
-    # 카드 시작
-    st.markdown('<div class="card-container">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🚗 경로 설정</div>', unsafe_allow_html=True)
+    # 경로 설정 폼 HTML 생성
+    route_form_html = f'''
+    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <div class="section-title">🚗 경로 설정</div>
+        
+        <div class="form-group">
+            <label class="form-label">이동 모드</label>
+            <div class="radio-group">
+                <div class="radio-item">
+                    <input type="radio" name="mode" value="driving" checked> 자동차
+                </div>
+                <div class="radio-item">
+                    <input type="radio" name="mode" value="walking"> 도보
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">출발지</label>
+            <div class="empty-state">Streamlit 선택박스가 여기에 표시됩니다</div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">경유지</label>
+            <div class="empty-state">Streamlit 다중선택박스가 여기에 표시됩니다</div>
+        </div>
+        
+        <div class="btn-group">
+            <div class="btn btn-success">✅ 경로 생성</div>
+            <div class="btn btn-danger">🚫 초기화</div>
+        </div>
+    </div>
+    '''
     
-    # Streamlit 요소들
+    st.markdown(route_form_html, unsafe_allow_html=True)
+    
+    # 실제 Streamlit 폼 요소들 (카드 아래에 배치)
     mode = st.radio("이동 모드", ["driving", "walking"], horizontal=True, key="mode_key")
     start = st.selectbox("출발지", gdf["name"].dropna().unique(), key="start_key")
     wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != st.session_state.get("start_key", "")], key="wps_key")
@@ -431,9 +453,6 @@ with col1:
         create_clicked = st.button("✅ 경로 생성")
     with col_btn2:
         clear_clicked = st.button("🚫 초기화")
-    
-    # 카드 끝
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ------------------------------
 # ✅ 초기화 처리
@@ -480,7 +499,7 @@ with col2:
     
     # 전체 카드 HTML
     st.markdown(f'''
-    <div class="card-container">
+    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
         <div class="section-title">🔢 방문 순서</div>
         {order_html}
         {metrics_html}
@@ -488,13 +507,23 @@ with col2:
     ''', unsafe_allow_html=True)
 
 # ------------------------------
-# ✅ [우] 지도 카드 - 컨테이너로 완전히 감싸기
+# ✅ [우] 지도 카드 - 완전 HTML로 생성
 # ------------------------------
 with col3:
-    # 카드 시작
-    st.markdown('<div class="card-container">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🗺️ 경로 지도</div>', unsafe_allow_html=True)
+    # 지도 카드 HTML 생성
+    map_card_html = f'''
+    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <div class="section-title">🗺️ 경로 지도</div>
+        <div class="map-placeholder">
+            📍 지도가 여기에 표시됩니다<br>
+            (Streamlit 지도 컴포넌트)
+        </div>
+    </div>
+    '''
     
+    st.markdown(map_card_html, unsafe_allow_html=True)
+    
+    # 실제 지도 로직 (카드 아래에 배치)
     # 지도 설정
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
@@ -638,9 +667,6 @@ with col3:
     
     folium.LayerControl().add_to(m)
     st_folium(m, width="100%", height=520, returned_objects=[])
-    
-    # 카드 끝
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # OpenAI 클라이언트 초기화
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")

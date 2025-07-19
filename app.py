@@ -138,8 +138,8 @@ st.markdown("""
         border-radius: 2px;
     }
     
-    /* 컨테이너를 카드로 만들기 - 핵심! */
-    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:first-child > div[data-testid="stMarkdown"] + div {
+    /* st.container()를 카드로 변환하는 핵심 CSS */
+    .stContainer > div {
         background: white !important;
         border: 1px solid #e1e4e8 !important;
         border-radius: 16px !important;
@@ -148,14 +148,23 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
     }
     
-    /* Streamlit 컨테이너를 카드로 변환 */
-    .stContainer > div {
+    /* 추가적인 컨테이너 선택자 */
+    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"] > div[data-testid="stContainer"] {
         background: white !important;
         border: 1px solid #e1e4e8 !important;
         border-radius: 16px !important;
         padding: 24px !important;
         margin-bottom: 24px !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    }
+    
+    /* 컨테이너 내부 요소들 간격 조정 */
+    .stContainer div[data-testid="element-container"] {
+        margin-bottom: 1rem;
+    }
+    
+    .stContainer div[data-testid="element-container"]:last-child {
+        margin-bottom: 0;
     }
     
     /* 섹션 제목 */
@@ -227,42 +236,36 @@ st.markdown("""
         flex-shrink: 0;
     }
     
-    /* 메트릭 섹션 */
-    .metrics-section {
-        display: flex;
-        gap: 12px;
-        margin-top: 20px;
-    }
-    
-    .metric-item {
-        flex: 1;
-        text-align: center;
-        padding: 16px 12px;
+    /* 메트릭 스타일 개선 */
+    .stMetric {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
         border-radius: 12px;
+        padding: 16px 12px;
         transition: all 0.2s ease;
     }
     
-    .metric-item:hover {
+    .stMetric:hover {
         background: #f1f5f9;
         border-color: #3b82f6;
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     
-    .metric-title {
+    .stMetric [data-testid="metric-container"] {
+        text-align: center;
+    }
+    
+    .stMetric [data-testid="metric-container"] > div:first-child {
         font-size: 0.8rem;
         color: #6b7280;
-        margin-bottom: 6px;
         font-weight: 500;
     }
     
-    .metric-value {
+    .stMetric [data-testid="metric-container"] > div:last-child {
         font-size: 1.2rem;
         font-weight: 700;
         color: #1f2937;
-        line-height: 1.2;
     }
     
     /* 빈 상태 메시지 */
@@ -371,20 +374,6 @@ st.markdown("""
         font-size: 0.9rem;
         line-height: 1.5;
     }
-    
-    /* GPT 섹션 하위 요소들 */
-    .stMarkdown h3 {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #202124;
-        margin: 1.5rem 0 1rem 0;
-    }
-    
-    .stMarkdown p {
-        font-size: 0.95rem;
-        line-height: 1.6;
-        color: #3c4043;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -432,46 +421,30 @@ if clear_clicked:
     st.rerun()
 
 # ------------------------------
-# ✅ [중간] 방문순서 + 메트릭 카드 - HTML로 완전 생성
+# ✅ [중간] 방문순서 + 메트릭 카드 - st.container() 사용
 # ------------------------------
 with col2:
-    current_order = st.session_state.get("order", [])
-    
-    # 방문 순서 HTML 생성
-    order_html = ""
-    if current_order:
-        for i, name in enumerate(current_order, 1):
-            order_html += f'''
-            <div class="order-item">
-                <div class="order-number">{i}</div>
-                <div>{name}</div>
-            </div>
-            '''
-    else:
-        order_html = '<div class="empty-state">경로 생성 후 표시됩니다</div>'
-    
-    # 메트릭 HTML 생성
-    metrics_html = f'''
-    <div class="metrics-section">
-        <div class="metric-item">
-            <div class="metric-title">⏱️ 소요시간</div>
-            <div class="metric-value">{st.session_state.get("duration", 0.0):.1f}분</div>
-        </div>
-        <div class="metric-item">
-            <div class="metric-title">📏 이동거리</div>
-            <div class="metric-value">{st.session_state.get("distance", 0.0):.2f}km</div>
-        </div>
-    </div>
-    '''
-    
-    # 전체 카드 HTML
-    st.markdown(f'''
-    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-        <div class="section-title">🔢 방문 순서</div>
-        {order_html}
-        {metrics_html}
-    </div>
-    ''', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="section-title">🔢 방문 순서</div>', unsafe_allow_html=True)
+        
+        current_order = st.session_state.get("order", [])
+        if current_order:
+            for i, name in enumerate(current_order, 1):
+                st.markdown(f'''
+                <div class="order-item">
+                    <div class="order-number">{i}</div>
+                    <div>{name}</div>
+                </div>
+                ''', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="empty-state">경로 생성 후 표시됩니다</div>', unsafe_allow_html=True)
+        
+        # 메트릭 섹션
+        col_metric1, col_metric2 = st.columns(2)
+        with col_metric1:
+            st.metric("⏱️ 소요시간", f"{st.session_state.get('duration', 0.0):.1f}분")
+        with col_metric2:
+            st.metric("📏 이동거리", f"{st.session_state.get('distance', 0.0):.2f}km")
 
 # ------------------------------
 # ✅ [우] 지도 카드 - st.container() 사용
@@ -583,22 +556,19 @@ with col3:
                           popup=folium.Popup(f"<b>{idx}. {place_name}</b>", max_width=200)
             ).add_to(m)
         
-        # 경로 라인 + 구간 번호 - 수정: 모든 구간에 아이콘 표시
+        # 경로 라인 + 구간 번호
         if st.session_state.get("segments"):
             palette = ["#4285f4", "#34a853", "#ea4335", "#fbbc04", "#9c27b0", "#ff9800"]
             segments = st.session_state["segments"]
             
-            # 모든 구간 처리
             for i, seg in enumerate(segments):
-                if seg:  # 구간이 존재할 때만 처리
-                    # 경로 라인 그리기
+                if seg:
                     folium.PolyLine([(pt[1], pt[0]) for pt in seg],
                                     color=palette[i % len(palette)], 
                                     weight=5, 
                                     opacity=0.8
                     ).add_to(m)
                     
-                    # 구간 번호 표시 - 모든 구간에 아이콘 추가
                     mid = seg[len(seg) // 2]
                     folium.map.Marker([mid[1], mid[0]],
                         icon=DivIcon(html=f"<div style='background:{palette[i % len(palette)]};"
@@ -608,7 +578,6 @@ with col3:
                                           f"{i+1}</div>")
                     ).add_to(m)
             
-            # 지도 범위 조정
             try:
                 pts = [pt for seg in segments for pt in seg if seg]
                 if pts:
@@ -628,90 +597,89 @@ with col3:
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")
 
 # ------------------------------
-# ✅ GPT 가이드
+# ✅ GPT 가이드 카드 - st.container() 사용
 # ------------------------------
-# 현재 GPT 가이드는 토큰 제한으로 인해 출발지 포함 3개까지만 관광지를 호출할 수 있습니다
-
-# GPT 가이드 UI
 st.markdown("---")
-st.subheader("🏛️ AI 관광 가이드")
 
-# 버튼 누르면 자동 입력값 저장
-if st.button("🔁 방문 순서 자동 입력"):
-    st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", []))
+with st.container():
+    st.markdown('<div class="section-title">🏛️ AI 관광 가이드</div>', unsafe_allow_html=True)
+    
+    # 버튼 누르면 자동 입력값 저장
+    if st.button("🔁 방문 순서 자동 입력"):
+        st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", []))
 
-# 메시지 상태 초기화 (한 번만 실행됨)
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
+    # 메시지 상태 초기화 (한 번만 실행됨)
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = []
 
-# 입력 폼 구성
-with st.form("chat_form"):
-    user_input = st.text_input("관광지명 쉼표로 구분", value=st.session_state.get("auto_gpt_input", ""))
-    submitted = st.form_submit_button("click!")
+    # 입력 폼 구성
+    with st.form("chat_form"):
+        user_input = st.text_input("관광지명 쉼표로 구분", value=st.session_state.get("auto_gpt_input", ""))
+        submitted = st.form_submit_button("🔍 관광지 정보 요청")
 
-# 폼 제출되었을 때 GPT 호출
-if submitted and user_input:
+    # 폼 제출되었을 때 GPT 호출
+    if submitted and user_input:
+        if st.session_state["order"]:
+            st.markdown("## ✨ 관광지별 소개 + 카페 추천")
 
-    if st.session_state["order"]:
-        st.markdown("## ✨ 관광지별 소개 + 카페 추천")
+            # 최대 3개까지만 처리
+            for place in st.session_state["order"][:3]:
+                with st.container():
+                    matched = data[data['t_name'].str.contains(place, na=False)]
 
-        # 최대 3개까지만 처리
-        for place in st.session_state["order"][:3]:
-            matched = data[data['t_name'].str.contains(place, na=False)]
+                    # GPT 간략 소개 with 예외 처리
+                    try:
+                        gpt_intro = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {"role": "system", "content": "당신은 청주 지역의 문화 관광지를 간단하게 소개하는 관광 가이드입니다. "},
+                                {"role": "system", "content": "존댓말을 사용하세요."},
+                                {"role": "user", "content": f"{place}를 두 문단 이내로 간단히 설명해주세요."}
+                            ]
+                        ).choices[0].message.content
+                    except Exception as e:
+                        gpt_intro = f"❌ GPT 호출 실패: {place} 소개를 불러올 수 없어요."
 
-            # GPT 간략 소개 with 예외 처리
-            try:
-                gpt_intro = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "당신은 청주 지역의 문화 관광지를 간단하게 소개하는 관광 가이드입니다. "},
-                        {"role": "system", "content": "존댓말을 사용하세요."},
-                        {"role": "user", "content": f"{place}를 두 문단 이내로 간단히 설명해주세요."}
-                    ]
-                ).choices[0].message.content
-            except Exception as e:
-                gpt_intro = f"❌ GPT 호출 실패: {place} 소개를 불러올 수 없어요."
+                    score_text = ""
+                    review_block = ""
+                    cafe_info = ""
 
-            score_text = ""
-            review_block = ""
-            cafe_info = ""
+                    if not matched.empty:
+                        # 평점
+                        t_value = matched['t_value'].dropna().unique()
+                        score_text = f"📊 관광지 평점: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
 
-            if not matched.empty:
-                # 평점
-                t_value = matched['t_value'].dropna().unique()
-                score_text = f"📊 관광지 평점: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
+                        # 리뷰
+                        reviews = matched['t_review'].dropna().unique()
+                        reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
+                        if reviews:
+                            review_text = "\n".join([f'"{r}"' for r in reviews[:3]])
+                            review_block = review_text
 
-                # 리뷰
-                reviews = matched['t_review'].dropna().unique()
-                reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
-                if reviews:
-                    review_text = "\n".join([f'"{r}"' for r in reviews[:3]])
-                    review_block = f"💬 방문자 리뷰\n{review_text}"
+                        # 카페
+                        cafes = matched[['c_name', 'c_value', 'c_review']].drop_duplicates()
+                        cafe_info = format_cafes(cafes)
+                    else:
+                        cafe_info = (
+                            "현재 이 관광지 주변에 등록된 카페 정보는 없어요.  \n"
+                            "하지만 근처에 숨겨진 보석 같은 공간이 있을 수 있으니,  \n"
+                            "지도를 활용해 천천히 걸어보시는 것도 추천드립니다 😊"
+                        )
 
-                # 카페
-                cafes = matched[['c_name', 'c_value', 'c_review']].drop_duplicates()
-                cafe_info = format_cafes(cafes)
-            else:
-                cafe_info = (
-                    "현재 이 관광지 주변에 등록된 카페 정보는 없어요.  \n"
-                    "하지만 근처에 숨겨진 보석 같은 공간이 있을 수 있으니,  \n"
-                    "지도를 활용해 천천히 걸어보시는 것도 추천드립니다 😊"
-                )
-
-            # 반복문 안에서 출력
-            response_lines = []
-            response_lines.append("---")
-            response_lines.append(f"🏛️ **{place}**")
-            if score_text:
-                response_lines.append(score_text)
-            response_lines.append("✨ **소개**")
-            response_lines.append(gpt_intro.strip())
-            if cafe_info:
-                response_lines.append("🧋 **주변 카페 추천**")
-                response_lines.append(cafe_info.strip())
-            if review_block:
-                response_lines.append("💬 **방문자 리뷰**")
-                for r in review_text.split("\n"):
-                    response_lines.append(f"- {r.strip('\"')}")
-
-            st.markdown("\n\n".join(response_lines))
+                    # 카드 내용 출력
+                    st.markdown(f"### 🏛️ **{place}**")
+                    if score_text:
+                        st.markdown(score_text)
+                    
+                    st.markdown("#### ✨ **소개**")
+                    st.markdown(gpt_intro.strip())
+                    
+                    if cafe_info:
+                        st.markdown("#### 🧋 **주변 카페 추천**")
+                        st.markdown(cafe_info.strip())
+                    
+                    if review_block:
+                        st.markdown("#### 💬 **방문자 리뷰**")
+                        for review in review_block.split("\n"):
+                            if review.strip():
+                                st.markdown(f"- {review.strip('\"')}")

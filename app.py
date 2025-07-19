@@ -269,14 +269,10 @@ st.markdown("""
         background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
         border: none;
         border-radius: 12px;
-        padding: 12px 8px;
+        padding: 16px 12px;
         text-align: center;
         transition: all 0.2s ease;
         box-shadow: 0 2px 4px rgba(168, 237, 234, 0.3);
-        height: 80px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
     
     .stMetric:hover {
@@ -284,28 +280,17 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(168, 237, 234, 0.4);
     }
     
-    .stMetric [data-testid="metric-container"] {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        width: 100%;
-    }
-    
     .stMetric [data-testid="metric-container"] > div:first-child {
-        font-size: 0.7rem;
+        font-size: 0.8rem;
         color: #374151;
         font-weight: 600;
-        margin-bottom: 2px;
-        line-height: 1;
+        margin-bottom: 4px;
     }
     
     .stMetric [data-testid="metric-container"] > div:last-child {
-        font-size: 1.1rem;
+        font-size: 1.4rem;
         font-weight: 700;
         color: #1f2937;
-        line-height: 1;
     }
     
     /* 빈 상태 메시지 */

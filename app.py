@@ -75,7 +75,7 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 페이지 설정 & 로고 수정된 디자인
+# ✅ 페이지 설정 & 카드 스타일 수정
 # ──────────────────────────────
 st.set_page_config(
     page_title="청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼", 
@@ -103,7 +103,7 @@ st.markdown("""
     }
     
     .stApp {
-        background: #fafafa;
+        background: #f5f5f5;
     }
     
     /* 헤더 컨테이너 (로고 + 제목) */
@@ -111,19 +111,20 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 16px;
-        margin-bottom: 1rem;
+        gap: 20px;
+        margin-bottom: 2rem;
+        padding: 1rem 0;
     }
     
     .logo-image {
-        width: 60px;
-        height: 60px;
+        width: 80px;   /* 크기 증가 */
+        height: 80px;  /* 크기 증가 */
         object-fit: contain;
     }
     
     .main-title {
         font-size: 2.8rem;
-        font-weight: 700;  /* 진하게 변경 */
+        font-weight: 700;
         color: #202124;
         letter-spacing: -1px;
         margin: 0;
@@ -137,26 +138,50 @@ st.markdown("""
         border-radius: 2px;
     }
     
-    /* 통일된 카드 스타일 */
+    /* 카드 스타일 - 콘텐츠가 제대로 들어가도록 수정 */
     .main-card {
         background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
+        border: 1px solid #e1e4e8;
+        border-radius: 16px;
         padding: 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         height: fit-content;
+        transition: box-shadow 0.2s ease;
+        /* 중요: Streamlit 컨테이너 오버라이드 */
+        position: relative;
+        z-index: 1;
     }
     
-    /* 섹션 제목 - 수정: 크기와 굵기 증가 */
+    .main-card:hover {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+    
+    /* Streamlit 컨테이너 스타일 오버라이드 */
+    .main-card .stRadio,
+    .main-card .stSelectbox,
+    .main-card .stMultiSelect,
+    .main-card .stButton,
+    .main-card .element-container {
+        margin-bottom: 16px !important;
+    }
+    
+    .main-card .stRadio > div,
+    .main-card .stSelectbox > div,
+    .main-card .stMultiSelect > div {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* 섹션 제목 */
     .section-title {
-        font-size: 1.3rem;  /* 크기 증가 */
-        font-weight: 700;   /* 굵기 증가 */
-        color: #202124;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #1a1a1a;
         margin-bottom: 20px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         padding-bottom: 12px;
         border-bottom: 2px solid #f1f3f4;
     }
@@ -164,21 +189,23 @@ st.markdown("""
     /* 버튼 스타일 */
     .stButton > button {
         background: white;
-        color: #3c4043;
-        border: 1px solid #dadce0;
-        border-radius: 8px;
-        padding: 12px 20px;
+        color: #374151;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 10px 16px;
         font-size: 0.9rem;
-        font-weight: 500;
+        font-weight: 600;
         width: 100%;
         height: 44px;
         transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
     .stButton > button:hover {
-        background: #f8f9fa;
-        border-color: #4285f4;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: #f9fafb;
+        border-color: #3b82f6;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-1px);
     }
     
     /* 방문 순서 스타일 */
@@ -187,49 +214,54 @@ st.markdown("""
     }
     
     .order-title {
-        font-size: 1.3rem;  /* 섹션 제목과 동일하게 수정 */
-        font-weight: 700;   /* 섹션 제목과 동일하게 수정 */
-        color: #202124;
-        margin-bottom: 12px;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 16px;
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding-bottom: 12px;  /* 패딩 추가 */
-        border-bottom: 2px solid #f1f3f4;  /* 하단 경계선 추가 */
+        gap: 10px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #f1f3f4;
     }
     
     .order-item {
-        padding: 8px 0;
-        border-bottom: 1px solid #f1f3f4;
-        font-size: 0.9rem;
-        color: #3c4043;
+        padding: 12px 16px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        color: #374151;
         display: flex;
         align-items: center;
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
     }
     
-    .order-item:last-child {
-        border-bottom: none;
+    .order-item:hover {
+        background: #f1f5f9;
+        border-color: #3b82f6;
     }
     
     .order-number {
-        background: #4285f4;
+        background: #3b82f6;
         color: white;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-right: 10px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        margin-right: 12px;
         flex-shrink: 0;
     }
     
-    /* 메트릭 스타일 */
+    /* 메트릭 섹션 */
     .metrics-section {
         display: flex;
-        gap: 16px;
+        gap: 12px;
         margin-top: 20px;
     }
     
@@ -237,23 +269,92 @@ st.markdown("""
         flex: 1;
         text-align: center;
         padding: 16px 12px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        border: 1px solid #e8eaed;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    
+    .metric-item:hover {
+        background: #f1f5f9;
+        border-color: #3b82f6;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     
     .metric-title {
         font-size: 0.8rem;
-        color: #5f6368;
-        margin-bottom: 4px;
+        color: #6b7280;
+        margin-bottom: 6px;
         font-weight: 500;
     }
     
     .metric-value {
-        font-size: 1.3rem;
-        font-weight: 600;
-        color: #202124;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #1f2937;
         line-height: 1.2;
+    }
+    
+    /* 빈 상태 메시지 */
+    .empty-state {
+        color: #9ca3af;
+        text-align: center;
+        padding: 24px 16px;
+        font-style: italic;
+        font-size: 0.9rem;
+        background: #f9fafb;
+        border: 2px dashed #d1d5db;
+        border-radius: 12px;
+        margin: 12px 0;
+    }
+    
+    /* 폼 스타일 */
+    .stSelectbox label, .stMultiSelect label, .stRadio label {
+        font-size: 0.9rem;
+        color: #374151;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    
+    .stRadio > div {
+        flex-direction: row;
+        gap: 20px;
+        margin-top: 8px;
+    }
+    
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select {
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 0.9rem;
+        transition: border-color 0.2s ease;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div > select:focus {
+        border-color: #3b82f6;
+    }
+    
+    /* 지도 스타일 */
+    .leaflet-container {
+        border-radius: 12px !important;
+    }
+    
+    /* 간격 조정 */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        max-width: 1400px;
+    }
+    
+    /* 성공/경고 메시지 */
+    .stSuccess, .stWarning, .stError {
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        font-size: 0.9rem;
     }
     
     /* GPT 섹션 스타일 */
@@ -302,56 +403,6 @@ st.markdown("""
         line-height: 1.5;
     }
     
-    /* 폼 스타일 */
-    .stSelectbox label, .stMultiSelect label, .stRadio label {
-        font-size: 0.9rem;
-        color: #3c4043;
-        font-weight: 500;
-        margin-bottom: 4px;
-    }
-    
-    .stRadio > div {
-        flex-direction: row;
-        gap: 24px;
-        margin-top: 8px;
-    }
-    
-    .stTextInput > div > div > input {
-        border: 1px solid #dadce0;
-        border-radius: 6px;
-        padding: 10px 12px;
-        font-size: 0.9rem;
-    }
-    
-    /* 지도 스타일 */
-    .leaflet-container {
-        border-radius: 8px !important;
-    }
-    
-    /* 간격 조정 */
-    .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 0.5rem;
-        max-width: 1400px;
-    }
-    
-    /* 성공/경고 메시지 */
-    .stSuccess, .stWarning, .stError {
-        border-radius: 8px;
-        border: none;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 0.9rem;
-    }
-    
-    /* 빈 상태 메시지 */
-    .empty-state {
-        color: #9aa0a6; 
-        text-align: center; 
-        padding: 20px;
-        font-style: italic;
-        font-size: 0.9rem;
-    }
-    
     /* GPT 섹션 하위 요소들 */
     .stMarkdown h3 {
         font-size: 1.2rem;
@@ -365,21 +416,11 @@ st.markdown("""
         line-height: 1.6;
         color: #3c4043;
     }
-    
-    /* 전체 여백 최소화 */
-    .main .block-container {
-        padding-bottom: 1rem;
-    }
-    
-    /* 컬럼 간격 최적화 */
-    .row-widget {
-        margin-bottom: 0 !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더 (GitHub Raw URL로 로고 이미지 로드)
+# ✅ 헤더 (GitHub Raw URL로 로고 이미지 로드 - 크기 증가)
 # ──────────────────────────────
 st.markdown('''
 <div class="header-container">
@@ -395,7 +436,7 @@ st.markdown('''
 col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 
 # ------------------------------
-# ✅ [좌] 경로 설정 카드
+# ✅ [좌] 경로 설정 카드 - 콘텐츠가 카드 안에 들어가도록 수정
 # ------------------------------
 with col1:
     with st.container():
@@ -425,7 +466,7 @@ if clear_clicked:
     st.rerun()
 
 # ------------------------------
-# ✅ [중간] 방문순서 + 메트릭 카드
+# ✅ [중간] 방문순서 + 메트릭 카드 - 콘텐츠가 카드 안에 들어가도록 수정
 # ------------------------------
 with col2:
     with st.container():
@@ -466,7 +507,7 @@ with col2:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
-# ✅ [우] 지도 카드
+# ✅ [우] 지도 카드 - 콘텐츠가 카드 안에 들어가도록 수정
 # ------------------------------
 with col3:
     with st.container():

@@ -39,9 +39,9 @@ def format_cafes(cafes_df):
     elif len(cafes_df) == 1:
         row = cafes_df.iloc[0]
         if all(x not in row["c_review"] for x in ["없음", "없읍"]):
-            return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  \n"{row['c_review']}""""
+            return f"☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  \n\"{row['c_review']}\""
         else:
-            return f"""☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"""
+            return f"☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"
 
     else:
         grouped = cafes_df.groupby(['c_name', 'c_value'])
@@ -52,7 +52,7 @@ def format_cafes(cafes_df):
             top_reviews = reviews[:3]
 
             if top_reviews:
-                review_text = "\n".join([f""{r}"" for r in top_reviews])
+                review_text = "\n".join([f"\"{r}\"" for r in top_reviews])
                 result.append(f"- **{name}** (⭐ {value})  \n{review_text}")
             else:
                 result.append(f"- **{name}** (⭐ {value})")
@@ -355,7 +355,7 @@ if submitted and user_input:
                 reviews = matched['t_review'].dropna().unique()
                 reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
                 if reviews:
-                    review_text = "\n".join([f""{r}"" for r in reviews[:3]])
+                    review_text = "\n".join([f"\"{r}\"" for r in reviews[:3]])
                     review_block = f"💬 방문자 리뷰\n{review_text}"
 
                 # 카페
@@ -382,6 +382,6 @@ if submitted and user_input:
             if review_block:
                 response_lines.append("💬 **방문자 리뷰**")
                 for r in review_text.split("\n"):
-                    response_lines.append(f"- {r.strip('""')}")
+                    response_lines.append(f"- {r.strip('\"')}")
 
             st.markdown("\n\n".join(response_lines))

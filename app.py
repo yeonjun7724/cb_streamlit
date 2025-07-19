@@ -14,8 +14,8 @@ import os
 # ──────────────────────────────
 # ✅ 환경변수 불러오기 (Streamlit Cloud 호환에 저장된 키 사용)
 # ──────────────────────────────
-MAPBOX_TOKEN = st.secrets["MAPBOX_TOKEN"]
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q" 
+openai.api_key = OpenAI(api_key=st.secrets["sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4"])
 
 # ──────────────────────────────
 # ✅ 데이터 로드

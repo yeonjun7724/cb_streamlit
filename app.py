@@ -13,7 +13,7 @@ import math
 import os
 
 # ──────────────────────────────
-# ✅ 환경변수 불러오기 (Streamlit Cloud 호환에 저장된 키 사용)
+# ✅ 환경변수 불러오기
 # ──────────────────────────────
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q" 
 openai.api_key = "sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4"
@@ -26,160 +26,324 @@ gdf["lon"], gdf["lat"] = gdf.geometry.x, gdf.geometry.y
 boundary = gpd.read_file("cb_shp.shp").to_crs(epsg=4326)
 data = pd.read_csv("cj_data_final.csv", encoding="cp949").drop_duplicates()
 
-# csv 파일에 카페 있을때 출력 / 카페 포맷 함수
+# 카페 포맷 함수
 def format_cafes(cafes_df):
     cafes_df = cafes_df.drop_duplicates(subset=['c_name', 'c_value', 'c_review'])
-    result = []
-
+    
     if len(cafes_df) == 0:
-        return ("현재 이 관광지 주변에 등록된 카페 정보는 없어요.  \n"
-                "하지만 근처에 숨겨진 보석 같은 공간이 있을 수 있으니,  \n"
-                "지도를 활용해 천천히 걸어보시는 것도 추천드립니다 😊")
-
+        return "주변에 등록된 카페 정보가 없습니다."
+    
     elif len(cafes_df) == 1:
         row = cafes_df.iloc[0]
         if all(x not in row["c_review"] for x in ["없음", "없읍"]):
-            return f"☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  \n\"{row['c_review']}\""
+            return f"**{row['c_name']}** ({row['c_value']}⭐)\n{row['c_review']}"
         else:
-            return f"☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"
-
+            return f"**{row['c_name']}** ({row['c_value']}⭐)"
+    
     else:
-        grouped = cafes_df.groupby(['c_name', 'c_value'])
-        result.append("**주변의 평점 높은 카페들은 여기 있어요!** 🌼\n")
-        for (name, value), group in grouped:
+        result = []
+        for (name, value), group in cafes_df.groupby(['c_name', 'c_value']):
             reviews = group['c_review'].dropna().unique()
             reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
-            top_reviews = reviews[:3]
-
-            if top_reviews:
-                review_text = "\n".join([f"\"{r}\"" for r in top_reviews])
-                result.append(f"- **{name}** (⭐ {value})  \n{review_text}")
+            
+            if reviews:
+                result.append(f"**{name}** ({value}⭐)\n{reviews[0]}")
             else:
-                result.append(f"- **{name}** (⭐ {value})")
-
-        return "\n\n".join(result)
-
-# ──────────────────────────────
-# ✅ Session 초기화
-# ──────────────────────────────
-DEFAULTS = {
-    "order": [],
-    "segments": [],
-    "duration": 0.0,
-    "distance": 0.0,
-    "messages": [{"role": "system", "content": "당신은 청주 문화관광 전문 가이드입니다."}],
-    "auto_gpt_input": ""
-}
-for k, v in DEFAULTS.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+                result.append(f"**{name}** ({value}⭐)")
+        
+        return "\n\n".join(result[:3])  # 최대 3개만
 
 # ──────────────────────────────
-# ✅ CSS & 스타일
+# ✅ 세션 상태 초기화
 # ──────────────────────────────
-st.set_page_config(page_title="청주시 경유지 & GPT 가이드", layout="wide")
+if 'order' not in st.session_state:
+    st.session_state.order = []
+if 'segments' not in st.session_state:
+    st.session_state.segments = []
+if 'duration' not in st.session_state:
+    st.session_state.duration = 0.0
+if 'distance' not in st.session_state:
+    st.session_state.distance = 0.0
+if 'auto_gpt_input' not in st.session_state:
+    st.session_state.auto_gpt_input = ""
+
+# ──────────────────────────────
+# ✅ 페이지 설정 & 미니멀 스타일
+# ──────────────────────────────
+st.set_page_config(
+    page_title="청풍로드", 
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-  html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    background: #f9fafb;
-    color: #333;
-  }
-  .card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    margin-bottom: 20px;
-  }
-  .stButton>button {
-    border-radius: 8px;
-    font-weight: 600;
-    padding: 12px 24px;
-    width: 100%;
-  }
-  .btn-create { background: linear-gradient(90deg,#00C9A7,#008EAB); color: #fff; }
-  .btn-clear { background: #E63946; color: #fff; }
-  .leaflet-container { border-radius: 12px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    /* 기본 스타일 리셋 */
+    .main > div {
+        padding-top: 2rem;
+        padding-bottom: 1rem;
+    }
+    
+    /* 헤더 숨기기 */
+    header[data-testid="stHeader"] {
+        display: none;
+    }
+    
+    /* 사이드바 숨기기 */
+    .css-1d391kg {
+        display: none;
+    }
+    
+    /* 메인 컨테이너 */
+    .stApp {
+        background: #fafafa;
+    }
+    
+    /* 타이틀 */
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 300;
+        color: #202124;
+        text-align: center;
+        margin: 0 0 3rem 0;
+        letter-spacing: -0.5px;
+    }
+    
+    /* 컨트롤 패널 */
+    .control-panel {
+        background: white;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+    
+    /* 버튼 스타일 */
+    .stButton > button {
+        background: white;
+        color: #3c4043;
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        width: 100%;
+        transition: all 0.2s ease;
+    }
+    
+    .stButton > button:hover {
+        background: #f8f9fa;
+        border-color: #bdc1c6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    /* 주요 액션 버튼 */
+    .primary-btn {
+        background: #1a73e8 !important;
+        color: white !important;
+        border: 1px solid #1a73e8 !important;
+    }
+    
+    .primary-btn:hover {
+        background: #1557b0 !important;
+        border-color: #1557b0 !important;
+    }
+    
+    /* 위험 버튼 */
+    .danger-btn {
+        background: #ea4335 !important;
+        color: white !important;
+        border: 1px solid #ea4335 !important;
+    }
+    
+    .danger-btn:hover {
+        background: #d33b2c !important;
+        border-color: #d33b2c !important;
+    }
+    
+    /* 메트릭 카드 */
+    .metric-card {
+        background: white;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    
+    .metric-title {
+        font-size: 14px;
+        color: #5f6368;
+        margin-bottom: 8px;
+    }
+    
+    .metric-value {
+        font-size: 24px;
+        font-weight: 400;
+        color: #202124;
+    }
+    
+    /* 방문 순서 */
+    .order-item {
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f3f4;
+        font-size: 14px;
+        color: #3c4043;
+    }
+    
+    .order-item:last-child {
+        border-bottom: none;
+    }
+    
+    /* 지도 컨테이너 */
+    .map-container {
+        background: white;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        padding: 8px;
+        margin-bottom: 24px;
+    }
+    
+    /* GPT 섹션 */
+    .gpt-section {
+        background: white;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        padding: 24px;
+        margin-top: 32px;
+    }
+    
+    .gpt-title {
+        font-size: 18px;
+        font-weight: 400;
+        color: #202124;
+        margin-bottom: 16px;
+    }
+    
+    /* 관광지 정보 카드 */
+    .place-card {
+        background: #f8f9fa;
+        border-left: 4px solid #1a73e8;
+        padding: 16px;
+        margin: 16px 0;
+        border-radius: 0 4px 4px 0;
+    }
+    
+    .place-title {
+        font-size: 16px;
+        font-weight: 500;
+        color: #202124;
+        margin-bottom: 8px;
+    }
+    
+    .place-content {
+        font-size: 14px;
+        line-height: 1.5;
+        color: #3c4043;
+    }
+    
+    /* 폼 스타일 */
+    .stTextInput > div > div > input {
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 14px;
+    }
+    
+    .stSelectbox > div > div > div {
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+    }
+    
+    .stMultiSelect > div > div > div {
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+    }
+    
+    /* 라디오 버튼 */
+    .stRadio > div {
+        flex-direction: row;
+        gap: 16px;
+    }
+    
+    /* 텍스트 스타일 */
+    .subtitle {
+        font-size: 16px;
+        font-weight: 400;
+        color: #5f6368;
+        margin-bottom: 16px;
+    }
+    
+    /* 여백 조정 */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 상단 타이틀
+# ✅ 헤더
 # ──────────────────────────────
-st.markdown("<h1 style='text-align:center;'>📍 청풍로드</h1>", unsafe_allow_html=True)
+st.markdown('<h1 class="main-title">청풍로드</h1>', unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 컬럼: 좌 → 우 UX 흐름
+# ✅ 메인 레이아웃
 # ──────────────────────────────
-col1, col2, col3, col4 = st.columns([1.5, 1, 1, 3], gap="large")
+col1, col2 = st.columns([1, 2], gap="large")
 
-# ------------------------------
-# ✅ [좌] 경로 설정
-# ------------------------------
+# 좌측: 컨트롤 패널
 with col1:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🚗 경로 설정")
-
-    # ✅ 키 지정해서 초기화 가능하게 만들기
-    mode = st.radio("이동 모드", ["driving", "walking"], horizontal=True, key="mode_key")
+    # 경로 설정
+    st.markdown('<div class="control-panel">', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">경로 설정</div>', unsafe_allow_html=True)
+    
+    mode = st.radio("", ["자동차", "도보"], horizontal=True, key="mode_key")
+    mode_en = "driving" if mode == "자동차" else "walking"
+    
     start = st.selectbox("출발지", gdf["name"].dropna().unique(), key="start_key")
     wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != st.session_state.get("start_key", "")], key="wps_key")
-
-    create_clicked = st.button("✅ 경로 생성")
-    clear_clicked = st.button("🚫 초기화")  # 초기화 버튼 유지
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ------------------------------
-# ✅ 초기화 처리 (버튼 누를 때)
-# ------------------------------
-if clear_clicked:
-    # 상태값 초기화
-    for k in ["segments", "order", "duration", "distance", "auto_gpt_input"]:
-        st.session_state[k] = DEFAULTS.get(k, [] if k in ["segments", "order"] else 0.0)
-
-    # 위젯 값도 초기화
-    for widget_key in ["mode_key", "start_key", "wps_key"]:
-        st.session_state.pop(widget_key, None)
-
-    # rerun으로 적용
-    st.rerun()
-
-# ------------------------------
-# ✅ [중간] 방문 순서
-# ------------------------------
-with col2:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🔢 방문 순서")
-    current_order = st.session_state.get("order", [])
-    if current_order:
-        for i, name in enumerate(current_order, 1):
-            st.markdown(f"<p style='margin:4px 0;'><strong>{i}.</strong> {name}</p>", unsafe_allow_html=True)
-    else:
-        st.markdown("<span style='color:#aaa'>경로 생성 후 표시됩니다.</span>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ------------------------------
-# ✅ [중간] KPI 카드
-# ------------------------------
-with col3:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align:center;'>⏱️ 예상 소요 시간</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align:center; margin-top:8px;'>{st.session_state.get('duration', 0.0):.1f} 분</h2>", unsafe_allow_html=True)
+    
     st.markdown("</div>", unsafe_allow_html=True)
     
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align:center;'>📏 예상 이동 거리</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align:center; margin-top:8px;'>{st.session_state.get('distance', 0.0):.2f} km</h2>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    # 버튼들
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        create_clicked = st.button("경로 생성")
+    with col_btn2:
+        clear_clicked = st.button("초기화")
+    
+    # 메트릭
+    st.markdown(f'''
+    <div class="metric-card">
+        <div class="metric-title">소요 시간</div>
+        <div class="metric-value">{st.session_state.get("duration", 0.0):.0f}분</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-title">이동 거리</div>
+        <div class="metric-value">{st.session_state.get("distance", 0.0):.1f}km</div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    # 방문 순서
+    if st.session_state.get("order"):
+        st.markdown('<div class="control-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="subtitle">방문 순서</div>', unsafe_allow_html=True)
+        for i, name in enumerate(st.session_state["order"], 1):
+            st.markdown(f'<div class="order-item">{i}. {name}</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# ------------------------------
-# ✅ [우] 지도 + 개선된 경로 처리
-# ------------------------------
-with col4:
-    # 중심점 계산
+# 우측: 지도
+with col2:
+    # 초기화 처리
+    if clear_clicked:
+        for k in ["segments", "order", "duration", "distance", "auto_gpt_input"]:
+            st.session_state[k] = [] if k in ["segments", "order"] else 0.0
+        for widget_key in ["mode_key", "start_key", "wps_key"]:
+            st.session_state.pop(widget_key, None)
+        st.rerun()
+    
+    # 지도 설정
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
     if math.isnan(clat): clat, clon = 36.64, 127.48
@@ -189,7 +353,6 @@ with col4:
         try:
             return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
         except:
-            # 백업 그래프 로딩
             return ox.graph_from_point((36.64, 127.48), dist=3000, network_type="all")
     
     G = load_graph(clat, clon)
@@ -198,7 +361,7 @@ with col4:
     stops = [start] + wps
     snapped = []
     
-    # 각 지점을 도로 네트워크에 스냅핑 (개선된 방식)
+    # 스냅핑
     try:
         for nm in stops:
             r = gdf[gdf["name"] == nm].iloc[0]
@@ -207,9 +370,7 @@ with col4:
             ln = edges.loc[edges["d"].idxmin()]
             sp = ln.geometry.interpolate(ln.geometry.project(pt))
             snapped.append((sp.x, sp.y))
-    except Exception as e:
-        st.error(f"지점 스냅핑 중 오류: {str(e)}")
-        # 원본 좌표 사용
+    except Exception:
         for nm in stops:
             r = gdf[gdf["name"] == nm].iloc[0]
             snapped.append((r.lon, r.lat))
@@ -223,16 +384,18 @@ with col4:
                 x2, y2 = snapped[i + 1]
                 coord = f"{x1},{y1};{x2},{y2}"
                 
-                if mode == "walking":
-                    url, key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}", "routes"
+                if mode_en == "walking":
+                    url = f"https://api.mapbox.com/directions/v5/mapbox/{mode_en}/{coord}"
                     params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
+                    key = "routes"
                 else:
-                    url, key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}", "trips"
+                    url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode_en}/{coord}"
                     params = {
                         "geometries": "geojson", "overview": "full",
                         "source": "first", "destination": "last", "roundtrip": "false",
                         "access_token": MAPBOX_TOKEN
                     }
+                    key = "trips"
                 
                 r = requests.get(url, params=params)
                 data_resp = r.json() if r.status_code == 200 else {}
@@ -248,171 +411,106 @@ with col4:
                 st.session_state["duration"] = td / 60
                 st.session_state["distance"] = tl / 1000
                 st.session_state["segments"] = segs
-                st.success("✅ 경로가 성공적으로 생성되었습니다!")
-            else:
-                st.warning("⚠️ 경로 생성에 실패했습니다.")
-        except Exception as e:
-            st.error(f"경로 생성 중 오류: {str(e)}")
+        except Exception:
+            st.error("경로 생성에 실패했습니다.")
 
-    # 지도 렌더링 (개선된 스타일)
-    st.markdown("<div class='card' style='padding:8px;'>", unsafe_allow_html=True)
-    m = folium.Map(location=[clat, clon], zoom_start=12)
+    # 지도 렌더링
+    st.markdown('<div class="map-container">', unsafe_allow_html=True)
+    m = folium.Map(location=[clat, clon], zoom_start=12, tiles="CartoDB Positron")
     
-    # 경계 표시 (스타일 개선)
+    # 경계
     folium.GeoJson(boundary, style_function=lambda f: {
-        "color": "#26A69A", "weight": 2, "dashArray": "4,4", "fillOpacity": 0.05
+        "color": "#9aa0a6", "weight": 1, "fillOpacity": 0.02
     }).add_to(m)
     
-    # 모든 관광지 마커 클러스터
-    mc = MarkerCluster().add_to(m)
+    # 관광지 마커
     for _, row in gdf.iterrows():
-        folium.Marker([row.lat, row.lon], 
-                      popup=folium.Popup(row.name, max_width=200),
-                      icon=folium.Icon(color="gray")).add_to(mc)
-    
-    # 경로 지점들 마커 (번호 순서대로) - 안전한 접근
-    current_order = st.session_state.get("order", stops)
-    for idx, (x, y) in enumerate(snapped, 1):
-        if idx <= len(current_order):
-            place_name = current_order[idx - 1]
-        else:
-            place_name = f"지점 {idx}"
-            
-        folium.Marker([y, x],
-                      icon=folium.Icon(color="red", icon="flag"),
-                      tooltip=f"{idx}. {place_name}",
-                      popup=folium.Popup(f"<b>{idx}. {place_name}</b>", max_width=200)
+        folium.CircleMarker(
+            [row.lat, row.lon], 
+            radius=4,
+            popup=folium.Popup(row.name, max_width=150),
+            color="#5f6368",
+            fillColor="#5f6368",
+            fillOpacity=0.6
         ).add_to(m)
     
-    # 경로 라인 그리기 (개선된 스타일)
+    # 경로 지점
+    current_order = st.session_state.get("order", stops)
+    for idx, (x, y) in enumerate(snapped, 1):
+        place_name = current_order[idx - 1] if idx <= len(current_order) else f"지점 {idx}"
+        folium.Marker([y, x],
+                      icon=folium.Icon(color="red", icon="circle", prefix="fa"),
+                      tooltip=f"{idx}. {place_name}",
+                      popup=folium.Popup(f"<b>{idx}. {place_name}</b>", max_width=150)
+        ).add_to(m)
+    
+    # 경로 라인
     if st.session_state.get("segments"):
-        palette = ["#FF5252", "#FFEA00", "#69F0AE", "#40C4FF", "#E040FB", "#FF8F00"]
+        palette = ["#4285f4", "#34a853", "#ea4335", "#fbbc04"]
         segments = st.session_state["segments"]
-        for i in range(len(segments), 0, -1):
-            seg = segments[i - 1]
+        for i, seg in enumerate(segments):
             folium.PolyLine([(pt[1], pt[0]) for pt in seg],
-                            color=palette[(i - 1) % len(palette)], 
-                            weight=6, 
-                            opacity=0.9
+                            color=palette[i % len(palette)], 
+                            weight=4, 
+                            opacity=0.8
             ).add_to(m)
-            
-            # 구간 번호 표시
-            if seg:  # 빈 세그먼트 체크
-                mid = seg[len(seg) // 2]
-                folium.map.Marker([mid[1], mid[0]],
-                    icon=DivIcon(html=f"<div style='background:{palette[(i - 1) % len(palette)]};"
-                                      "color:#fff;border-radius:50%;width:28px;height:28px;"
-                                      "line-height:28px;text-align:center;font-weight:600;'>"
-                                      f"{i}</div>")
-                ).add_to(m)
         
-        # 경로에 맞게 지도 범위 조정
         try:
             pts = [pt for seg in segments for pt in seg if seg]
             if pts:
                 m.fit_bounds([[min(p[1] for p in pts), min(p[0] for p in pts)],
                               [max(p[1] for p in pts), max(p[0] for p in pts)]])
         except:
-            m.location = [clat, clon]
-            m.zoom_start = 12
-    else:
-        m.location = [clat, clon]
-        m.zoom_start = 12
+            pass
     
-    # 레이어 컨트롤 추가
-    folium.LayerControl().add_to(m)
-    st_folium(m, width="100%", height=650)
+    st_folium(m, width="100%", height=500, returned_objects=[])
     st.markdown("</div>", unsafe_allow_html=True)
 
-# OpenAI 클라이언트 초기화
+# ──────────────────────────────
+# ✅ GPT 가이드 (단순화)
+# ──────────────────────────────
+st.markdown('<div class="gpt-section">', unsafe_allow_html=True)
+st.markdown('<div class="gpt-title">관광지 정보</div>', unsafe_allow_html=True)
+
+# OpenAI 클라이언트
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")
 
-# ------------------------------
-# ✅ GPT 가이드
-# ------------------------------
+col_input, col_btn = st.columns([3, 1])
+with col_input:
+    if st.button("선택된 경로 정보 보기", disabled=not st.session_state.get("order")):
+        show_info = True
+    else:
+        show_info = False
 
-####### 현재 GPT 가이드는 토큰 제한으로 인해 출발지 포함 3개까지만 관광지를 호출할 수 있습니다 ######
+if show_info and st.session_state.get("order"):
+    for place in st.session_state["order"][:3]:
+        matched = data[data['t_name'].str.contains(place, na=False)]
+        
+        # GPT 소개
+        try:
+            gpt_intro = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "청주 관광지를 간단히 소개해주세요."},
+                    {"role": "user", "content": f"{place}를 한 문단으로 설명해주세요."}
+                ]
+            ).choices[0].message.content
+        except:
+            gpt_intro = f"{place}에 대한 정보를 불러올 수 없습니다."
+        
+        # 카드 형태로 표시
+        st.markdown(f'''
+        <div class="place-card">
+            <div class="place-title">{place}</div>
+            <div class="place-content">{gpt_intro}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        # 카페 정보 (간단하게)
+        if not matched.empty:
+            cafes = matched[['c_name', 'c_value', 'c_review']].drop_duplicates()
+            cafe_info = format_cafes(cafes)
+            if cafe_info != "주변에 등록된 카페 정보가 없습니다.":
+                st.markdown(f'<div class="place-content" style="margin-top:8px;"><strong>주변 카페</strong><br>{cafe_info}</div>', unsafe_allow_html=True)
 
-# GPT 가이드 UI
-st.markdown("---")
-st.subheader("🏛️ AI 관광 가이드")
-
-# 버튼 누르면 자동 입력값 저장
-if st.button("🔁 방문 순서 자동 입력"):
-    st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", []))
-
-# 메시지 상태 초기화 (한 번만 실행됨)
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
-
-# 입력 폼 구성
-with st.form("chat_form"):
-    user_input = st.text_input("관광지명 쉼표로 구분", value=st.session_state.get("auto_gpt_input", ""))
-    submitted = st.form_submit_button("click!")
-
-# 폼 제출되었을 때 GPT 호출
-if submitted and user_input:
-    current_order = st.session_state.get("order", [])
-    if current_order:
-        st.markdown("## ✨ 관광지별 소개 + 카페 추천")
-
-        # 최대 3개까지만 처리
-        for place in current_order[:3]:
-            matched = data[data['t_name'].str.contains(place, na=False)]
-
-            # GPT 간략 소개 with 예외 처리
-            try:
-                gpt_intro = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "당신은 청주 지역의 문화 관광지를 간단하게 소개하는 관광 가이드입니다. "},
-                        {"role": "system", "content": "존댓말을 사용하세요."},
-                        {"role": "user", "content": f"{place}를 두 문단 이내로 간단히 설명해주세요."}
-                    ]
-                ).choices[0].message.content
-            except Exception as e:
-                gpt_intro = f"❌ GPT 호출 실패: {place} 소개를 불러올 수 없어요."
-
-            score_text = ""
-            review_block = ""
-            cafe_info = ""
-
-            if not matched.empty:
-                # 평점
-                t_value = matched['t_value'].dropna().unique()
-                score_text = f"📊 관광지 평점: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
-
-                # 리뷰
-                reviews = matched['t_review'].dropna().unique()
-                reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
-                if reviews:
-                    review_text = "\n".join([f"\"{r}\"" for r in reviews[:3]])
-                    review_block = f"💬 방문자 리뷰\n{review_text}"
-
-                # 카페
-                cafes = matched[['c_name', 'c_value', 'c_review']].drop_duplicates()
-                cafe_info = format_cafes(cafes)
-            else:
-                cafe_info = (
-                    "현재 이 관광지 주변에 등록된 카페 정보는 없어요.  \n"
-                    "하지만 근처에 숨겨진 보석 같은 공간이 있을 수 있으니,  \n"
-                    "지도를 활용해 천천히 걸어보시는 것도 추천드립니다 😊"
-                )
-
-            # ✅ 반복문 안에서 출력
-            response_lines = []
-            response_lines.append("---")
-            response_lines.append(f"🏛️ **{place}**")
-            if score_text:
-                response_lines.append(score_text)
-            response_lines.append("✨ **소개**")
-            response_lines.append(gpt_intro.strip())
-            if cafe_info:
-                response_lines.append("🧋 **주변 카페 추천**")
-                response_lines.append(cafe_info.strip())
-            if review_block:
-                response_lines.append("💬 **방문자 리뷰**")
-                for r in review_text.split("\n"):
-                    response_lines.append(f"- {r.strip('\"')}")
-
-            st.markdown("\n\n".join(response_lines))
+st.markdown("</div>", unsafe_allow_html=True)

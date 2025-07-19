@@ -75,7 +75,7 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 페이지 설정 & 깔끔한 디자인
+# ✅ 페이지 설정 & 개선된 디자인
 # ──────────────────────────────
 st.set_page_config(
     page_title="청풍로드", 
@@ -105,15 +105,15 @@ st.markdown("""
         font-weight: 300;
         color: #202124;
         text-align: center;
-        margin: 0 0 0.8rem 0;
+        margin: 0 0 1rem 0;
         letter-spacing: -0.5px;
     }
     
     .title-underline {
-        width: 80px;
+        width: 200px;
         height: 3px;
         background: linear-gradient(90deg, #4285f4, #34a853);
-        margin: 0 auto 2rem auto;
+        margin: 0 auto 2.5rem auto;
         border-radius: 2px;
     }
     
@@ -125,32 +125,26 @@ st.markdown("""
         padding: 24px;
         margin-bottom: 20px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        height: fit-content;
     }
     
-    .metric-card {
+    .info-card {
         background: white;
         border: 1px solid #e0e0e0;
         border-radius: 12px;
-        padding: 20px;
-        text-align: center;
-        margin-bottom: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    
-    .order-card {
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        height: fit-content;
     }
     
     .map-card {
         background: white;
         border: 1px solid #e0e0e0;
         border-radius: 12px;
-        padding: 12px;
+        padding: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
     }
     
     /* 섹션 제목 */
@@ -158,10 +152,12 @@ st.markdown("""
         font-size: 1.1rem;
         font-weight: 600;
         color: #202124;
-        margin-bottom: 16px;
+        margin-bottom: 20px;
         display: flex;
         align-items: center;
         gap: 8px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #f1f3f4;
     }
     
     /* 버튼 스타일 */
@@ -184,39 +180,25 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
-    /* 주요 버튼 */
-    .primary-button {
-        background: #4285f4 !important;
-        color: white !important;
-        border-color: #4285f4 !important;
+    /* 방문 순서 스타일 */
+    .order-section {
+        margin-bottom: 24px;
     }
     
-    .secondary-button {
-        background: #ea4335 !important;
-        color: white !important;
-        border-color: #ea4335 !important;
-    }
-    
-    /* 메트릭 */
-    .metric-title {
-        font-size: 14px;
-        color: #5f6368;
-        margin-bottom: 8px;
-        font-weight: 400;
-    }
-    
-    .metric-value {
-        font-size: 28px;
-        font-weight: 400;
+    .order-title {
+        font-size: 16px;
+        font-weight: 600;
         color: #202124;
-        line-height: 1.2;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     
-    /* 방문 순서 */
     .order-item {
-        padding: 10px 0;
+        padding: 8px 0;
         border-bottom: 1px solid #f1f3f4;
-        font-size: 15px;
+        font-size: 14px;
         color: #3c4043;
         display: flex;
         align-items: center;
@@ -229,26 +211,57 @@ st.markdown("""
     .order-number {
         background: #4285f4;
         color: white;
-        width: 24px;
-        height: 24px;
+        width: 20px;
+        height: 20px;
         border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
-        margin-right: 12px;
+        margin-right: 10px;
         flex-shrink: 0;
     }
     
-    /* GPT 섹션 */
-    .gpt-section {
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 24px;
-        margin-top: 32px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    /* 메트릭 스타일 */
+    .metrics-section {
+        display: flex;
+        gap: 16px;
+        margin-top: 20px;
+    }
+    
+    .metric-item {
+        flex: 1;
+        text-align: center;
+        padding: 16px 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e8eaed;
+    }
+    
+    .metric-title {
+        font-size: 12px;
+        color: #5f6368;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+    
+    .metric-value {
+        font-size: 20px;
+        font-weight: 600;
+        color: #202124;
+        line-height: 1.2;
+    }
+    
+    /* GPT 섹션 스타일 */
+    .gpt-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #202124;
+        margin: 2rem 0 1rem 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
     
     .place-info {
@@ -298,6 +311,13 @@ st.markdown("""
         margin-top: 8px;
     }
     
+    .stTextInput > div > div > input {
+        border: 1px solid #dadce0;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+    
     /* 지도 스타일 */
     .leaflet-container {
         border-radius: 8px !important;
@@ -315,11 +335,19 @@ st.markdown("""
         border: none;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    
+    /* 빈 상태 메시지 */
+    .empty-state {
+        color: #9aa0a6; 
+        text-align: center; 
+        padding: 20px;
+        font-style: italic;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더
+# ✅ 헤더 (긴 라인 적용)
 # ──────────────────────────────
 st.markdown('''
 <div class="main-title">📍 청풍로드</div>
@@ -327,12 +355,12 @@ st.markdown('''
 ''', unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 메인 레이아웃 (4컬럼 유지)
+# ✅ 메인 레이아웃 (3컬럼으로 변경)
 # ──────────────────────────────
-col1, col2, col3, col4 = st.columns([1.5, 1, 1, 3], gap="large")
+col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 
 # ------------------------------
-# ✅ [좌] 경로 설정
+# ✅ [좌] 경로 설정 (카드 안에 모든 요소 포함)
 # ------------------------------
 with col1:
     st.markdown('<div class="control-card">', unsafe_allow_html=True)
@@ -361,11 +389,14 @@ if clear_clicked:
     st.rerun()
 
 # ------------------------------
-# ✅ [중간] 방문 순서
+# ✅ [중간] 통합 정보 카드 (방문순서 + 메트릭)
 # ------------------------------
 with col2:
-    st.markdown('<div class="order-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🔢 방문 순서</div>', unsafe_allow_html=True)
+    st.markdown('<div class="info-card">', unsafe_allow_html=True)
+    
+    # 방문 순서 섹션
+    st.markdown('<div class="order-section">', unsafe_allow_html=True)
+    st.markdown('<div class="order-title">🔢 방문 순서</div>', unsafe_allow_html=True)
     
     current_order = st.session_state.get("order", [])
     if current_order:
@@ -377,29 +408,32 @@ with col2:
             </div>
             ''', unsafe_allow_html=True)
     else:
-        st.markdown('<div style="color:#9aa0a6; text-align:center; padding:20px;">경로 생성 후 표시됩니다</div>', unsafe_allow_html=True)
+        st.markdown('<div class="empty-state">경로 생성 후 표시됩니다</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 메트릭 섹션
+    st.markdown(f'''
+    <div class="metrics-section">
+        <div class="metric-item">
+            <div class="metric-title">⏱️ 소요시간</div>
+            <div class="metric-value">{st.session_state.get("duration", 0.0):.1f}분</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-title">📏 이동거리</div>
+            <div class="metric-value">{st.session_state.get("distance", 0.0):.2f}km</div>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
     
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
-# ✅ [중간] KPI 카드
+# ✅ [우] 지도 (카드 안에 완전히 포함)
 # ------------------------------
 with col3:
-    st.markdown(f'''
-    <div class="metric-card">
-        <div class="metric-title">⏱️ 예상 소요 시간</div>
-        <div class="metric-value">{st.session_state.get("duration", 0.0):.1f}분</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-title">📏 예상 이동 거리</div>
-        <div class="metric-value">{st.session_state.get("distance", 0.0):.2f}km</div>
-    </div>
-    ''', unsafe_allow_html=True)
-
-# ------------------------------
-# ✅ [우] 지도 (모든 기능 보존)
-# ------------------------------
-with col4:
+    st.markdown('<div class="map-card">', unsafe_allow_html=True)
+    
     # 지도 설정
     ctr = boundary.geometry.centroid
     clat, clon = float(ctr.y.mean()), float(ctr.x.mean())
@@ -474,7 +508,6 @@ with col4:
             st.error(f"경로 생성 중 오류: {str(e)}")
 
     # 지도 렌더링 (모든 기능 보존)
-    st.markdown('<div class="map-card">', unsafe_allow_html=True)
     m = folium.Map(location=[clat, clon], zoom_start=12, tiles="CartoDB Positron")
     
     # 경계
@@ -541,16 +574,16 @@ with col4:
     
     folium.LayerControl().add_to(m)
     st_folium(m, width="100%", height=580, returned_objects=[])
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
 # OpenAI 클라이언트 초기화
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")
 
 # ------------------------------
-# ✅ GPT 가이드 (모든 기능 보존)
+# ✅ GPT 가이드 (카드 제거하고 깔끔하게)
 # ------------------------------
-st.markdown('<div class="gpt-section">', unsafe_allow_html=True)
-st.markdown('<div class="section-title">🏛️ AI 관광 가이드</div>', unsafe_allow_html=True)
+st.markdown('<div class="gpt-title">🏛️ AI 관광 가이드</div>', unsafe_allow_html=True)
 
 # 자동 입력 버튼
 if st.button("🔁 방문 순서 자동 입력"):
@@ -627,5 +660,3 @@ if submitted and user_input:
                     지도를 활용해 천천히 걸어보시는 것도 추천드립니다 😊
                 </div>
                 ''', unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)

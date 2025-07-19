@@ -187,13 +187,15 @@ st.markdown("""
     }
     
     .order-title {
-        font-size: 1rem;
-        font-weight: 600;
+        font-size: 1.3rem;  /* 섹션 제목과 동일하게 수정 */
+        font-weight: 700;   /* 섹션 제목과 동일하게 수정 */
         color: #202124;
         margin-bottom: 12px;
         display: flex;
         align-items: center;
         gap: 8px;
+        padding-bottom: 12px;  /* 패딩 추가 */
+        border-bottom: 2px solid #f1f3f4;  /* 하단 경계선 추가 */
     }
     
     .order-item {
@@ -377,11 +379,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더 (GitHub에서 로고 이미지 로드)
+# ✅ 헤더 (GitHub Raw URL로 로고 이미지 로드)
 # ──────────────────────────────
 st.markdown('''
 <div class="header-container">
-    <img src="https://raw.githubusercontent.com/your-username/your-repository/main/image.png" alt="청풍로드 로고" class="logo-image">
+    <img src="https://raw.githubusercontent.com/yeonjun7724/cb_streamlit/main/image.png" alt="청풍로드 로고" class="logo-image">
     <div class="main-title">청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼</div>
 </div>
 <div class="title-underline"></div>

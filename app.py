@@ -75,7 +75,7 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 페이지 설정 & 로고 포함 디자인
+# ✅ 페이지 설정 & 로고 수정된 디자인
 # ──────────────────────────────
 st.set_page_config(
     page_title="청풍로드", 
@@ -377,11 +377,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더 (로고 + 제목 + 라인)
+# ✅ 헤더 (로고를 Base64나 외부 URL로 수정)
 # ──────────────────────────────
 st.markdown('''
 <div class="header-container">
-    <img src="image.png" alt="청풍로드 로고" class="logo-image">
+    <div style="width: 60px; height: 60px; background: #4285f4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">🗺️</div>
     <div class="main-title">청풍로드</div>
 </div>
 <div class="title-underline"></div>
@@ -393,7 +393,7 @@ st.markdown('''
 col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 
 # ------------------------------
-# ✅ [좌] 경로 설정 카드
+# ✅ [좌] 경로 설정 카드 (완전히 카드 안에)
 # ------------------------------
 with col1:
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
@@ -422,7 +422,7 @@ if clear_clicked:
     st.rerun()
 
 # ------------------------------
-# ✅ [중간] 방문순서 + 메트릭 카드
+# ✅ [중간] 방문순서 + 메트릭 카드 (완전히 카드 안에)
 # ------------------------------
 with col2:
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
@@ -462,7 +462,7 @@ with col2:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
-# ✅ [우] 지도 카드
+# ✅ [우] 지도 카드 (완전히 카드 안에)
 # ------------------------------
 with col3:
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
@@ -501,7 +501,7 @@ with col3:
             r = gdf[gdf["name"] == nm].iloc[0]
             snapped.append((r.lon, r.lat))
 
-    # 경로 생성
+    # 경로 생성 (경로 생성 버튼을 눌렀을 때만 실행)
     if create_clicked and len(snapped) >= 2:
         try:
             segs, td, tl = [], 0.0, 0.0
@@ -531,6 +531,7 @@ with col3:
                     tl += leg.get("distance", 0)
             
             if segs:
+                # 경로 생성 버튼을 눌렀을 때 방문 순서 업데이트
                 st.session_state["order"] = stops
                 st.session_state["duration"] = td / 60
                 st.session_state["distance"] = tl / 1000
@@ -615,12 +616,12 @@ with col3:
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")
 
 # ------------------------------
-# ✅ GPT 가이드 (깔끔하게)
+# ✅ GPT 가이드 (기능 수정)
 # ------------------------------
 st.markdown('<div class="gpt-title">🏛️ AI 관광 가이드</div>', unsafe_allow_html=True)
 
-# 자동 입력 버튼
-if st.button("🔁 방문 순서 자동 입력"):
+# 자동 입력 버튼 (방문 순서가 있을 때만 활성화되고, 경로 정보를 텍스트 입력란에 자동 입력)
+if st.button("🔁 방문 순서 자동 입력", disabled=not st.session_state.get("order")):
     st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", []))
 
 # 메시지 상태 초기화
@@ -634,11 +635,13 @@ with st.form("chat_form"):
 
 # GPT 호출 및 정보 표시 (모든 기능 보존!)
 if submitted and user_input:
-    current_order = st.session_state.get("order", [])
-    if current_order:
+    # 입력받은 관광지명을 쉼표로 분리
+    places_to_query = [place.strip() for place in user_input.split(",") if place.strip()]
+    
+    if places_to_query:
         st.markdown("### ✨ 관광지별 소개 + 카페 추천")
 
-        for place in current_order[:3]:
+        for place in places_to_query[:3]:  # 최대 3개까지
             matched = data[data['t_name'].str.contains(place, na=False)]
 
             # GPT 소개

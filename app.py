@@ -678,7 +678,7 @@ if submitted and user_input:
                 reviews = matched['t_review'].dropna().unique()
                 reviews = [r for r in reviews if all(x not in r for x in ["없음", "없읍"])]
                 if reviews:
-                    review_text = "\n".join([f""{r}"" for r in reviews[:3]])
+                    review_text = "\n".join([f'"{r}"' for r in reviews[:3]])
                     review_block = f"💬 방문자 리뷰\n{review_text}"
 
                 # 카페
@@ -705,6 +705,6 @@ if submitted and user_input:
             if review_block:
                 response_lines.append("💬 **방문자 리뷰**")
                 for r in review_text.split("\n"):
-                    response_lines.append(f"- {r.strip('""')}")
+                    response_lines.append(f"- {r.strip('\"')}")
 
             st.markdown("\n\n".join(response_lines))

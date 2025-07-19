@@ -15,7 +15,7 @@ import os
 # ──────────────────────────────
 # ✅ 환경변수 불러오기 (Streamlit Cloud 호환에 저장된 키 사용)
 # ──────────────────────────────
-MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q" 
+MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbmc5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q" 
 openai.api_key = "sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4"
 
 # ──────────────────────────────
@@ -377,11 +377,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더 (로고를 Base64나 외부 URL로 수정)
+# ✅ 헤더 (로고를 image.png로 수정)
 # ──────────────────────────────
 st.markdown('''
 <div class="header-container">
-    <div style="width: 60px; height: 60px; background: #4285f4; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">🗺️</div>
+    <img src="image.png" class="logo-image" alt="청풍로드 로고"/>
     <div class="main-title">청풍로드</div>
 </div>
 <div class="title-underline"></div>
@@ -531,12 +531,13 @@ with col3:
                     tl += leg.get("distance", 0)
             
             if segs:
-                # 경로 생성 버튼을 눌렀을 때 방문 순서 업데이트
+                # 경로 생성 버튼을 눌렀을 때 방문 순서 및 메트릭 업데이트
                 st.session_state["order"] = stops
                 st.session_state["duration"] = td / 60
                 st.session_state["distance"] = tl / 1000
                 st.session_state["segments"] = segs
                 st.success("✅ 경로가 성공적으로 생성되었습니다!")
+                st.rerun()  # 즉시 화면 업데이트
             else:
                 st.warning("⚠️ 경로 생성에 실패했습니다.")
         except Exception as e:
@@ -622,7 +623,7 @@ st.markdown('<div class="gpt-title">🏛️ AI 관광 가이드</div>', unsafe_a
 
 # 자동 입력 버튼 (방문 순서가 있을 때만 활성화되고, 경로 정보를 텍스트 입력란에 자동 입력)
 if st.button("🔁 방문 순서 자동 입력", disabled=not st.session_state.get("order")):
-    st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", []))
+    st.session_state["auto_gpt_input"] = ", ".join(st.session_state.get("order", [])) # 단순히 텍스트 입력란에 자동 입력만
 
 # 메시지 상태 초기화
 if "messages" not in st.session_state:

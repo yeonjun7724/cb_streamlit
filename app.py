@@ -78,7 +78,7 @@ for k, v in DEFAULTS.items():
 # ✅ 페이지 설정 & 로고 수정된 디자인
 # ──────────────────────────────
 st.set_page_config(
-    page_title="청풍로드", 
+    page_title="청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )

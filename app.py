@@ -75,7 +75,7 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 페이지 설정 & 개선된 디자인
+# ✅ 페이지 설정 & 통일된 폰트 시스템
 # ──────────────────────────────
 st.set_page_config(
     page_title="청풍로드", 
@@ -85,10 +85,17 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* 기본 폰트 시스템 */
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
     /* 기본 스타일 */
     .main > div {
-        padding-top: 1.5rem;
-        padding-bottom: 1rem;
+        padding-top: 1.2rem;
+        padding-bottom: 0.5rem;
     }
     
     header[data-testid="stHeader"] {
@@ -101,19 +108,19 @@ st.markdown("""
     
     /* 타이틀 스타일 */
     .main-title {
-        font-size: 2.5rem;
+        font-size: 2.8rem;
         font-weight: 300;
         color: #202124;
         text-align: center;
         margin: 0 0 1rem 0;
-        letter-spacing: -0.5px;
+        letter-spacing: -1px;
     }
     
     .title-underline {
-        width: 200px;
+        width: 100%;
         height: 3px;
         background: linear-gradient(90deg, #4285f4, #34a853);
-        margin: 0 auto 2.5rem auto;
+        margin: 0 auto 2rem auto;
         border-radius: 2px;
     }
     
@@ -123,7 +130,7 @@ st.markdown("""
         border: 1px solid #e0e0e0;
         border-radius: 12px;
         padding: 24px;
-        margin-bottom: 20px;
+        margin-bottom: 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         height: fit-content;
     }
@@ -133,7 +140,7 @@ st.markdown("""
         border: 1px solid #e0e0e0;
         border-radius: 12px;
         padding: 24px;
-        margin-bottom: 20px;
+        margin-bottom: 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         height: fit-content;
     }
@@ -144,10 +151,11 @@ st.markdown("""
         border-radius: 12px;
         padding: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        margin-bottom: 0;
+        height: fit-content;
     }
     
-    /* 섹션 제목 */
+    /* 폰트 크기 체계 - 중요도별 */
     .section-title {
         font-size: 1.1rem;
         font-weight: 600;
@@ -160,6 +168,57 @@ st.markdown("""
         border-bottom: 2px solid #f1f3f4;
     }
     
+    .order-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #202124;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .gpt-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #202124;
+        margin: 2rem 0 1.5rem 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .place-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #202124;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    /* 본문 텍스트 */
+    .place-content {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #3c4043;
+        margin-bottom: 12px;
+    }
+    
+    .order-item {
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f3f4;
+        font-size: 0.9rem;
+        color: #3c4043;
+        display: flex;
+        align-items: center;
+    }
+    
+    .order-item:last-child {
+        border-bottom: none;
+    }
+    
     /* 버튼 스타일 */
     .stButton > button {
         background: white;
@@ -167,7 +226,7 @@ st.markdown("""
         border: 1px solid #dadce0;
         border-radius: 8px;
         padding: 12px 20px;
-        font-size: 14px;
+        font-size: 0.9rem;
         font-weight: 500;
         width: 100%;
         height: 44px;
@@ -185,29 +244,6 @@ st.markdown("""
         margin-bottom: 24px;
     }
     
-    .order-title {
-        font-size: 16px;
-        font-weight: 600;
-        color: #202124;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .order-item {
-        padding: 8px 0;
-        border-bottom: 1px solid #f1f3f4;
-        font-size: 14px;
-        color: #3c4043;
-        display: flex;
-        align-items: center;
-    }
-    
-    .order-item:last-child {
-        border-bottom: none;
-    }
-    
     .order-number {
         background: #4285f4;
         color: white;
@@ -217,7 +253,7 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 11px;
+        font-size: 0.75rem;
         font-weight: 600;
         margin-right: 10px;
         flex-shrink: 0;
@@ -240,30 +276,20 @@ st.markdown("""
     }
     
     .metric-title {
-        font-size: 12px;
+        font-size: 0.8rem;
         color: #5f6368;
         margin-bottom: 4px;
         font-weight: 500;
     }
     
     .metric-value {
-        font-size: 20px;
+        font-size: 1.3rem;
         font-weight: 600;
         color: #202124;
         line-height: 1.2;
     }
     
-    /* GPT 섹션 스타일 */
-    .gpt-title {
-        font-size: 1.3rem;
-        font-weight: 600;
-        color: #202124;
-        margin: 2rem 0 1rem 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
+    /* 관광지 정보 카드 스타일 */
     .place-info {
         background: #f8f9fa;
         border-left: 4px solid #4285f4;
@@ -272,34 +298,19 @@ st.markdown("""
         border-radius: 0 8px 8px 0;
     }
     
-    .place-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #202124;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .place-content {
-        font-size: 14px;
-        line-height: 1.6;
-        color: #3c4043;
-        margin-bottom: 12px;
-    }
-    
     .cafe-section {
         background: #fff3e0;
         border-left: 4px solid #ff9800;
         padding: 16px;
         margin-top: 12px;
         border-radius: 0 6px 6px 0;
+        font-size: 0.9rem;
+        line-height: 1.5;
     }
     
     /* 폼 스타일 */
     .stSelectbox label, .stMultiSelect label, .stRadio label {
-        font-size: 14px;
+        font-size: 0.9rem;
         color: #3c4043;
         font-weight: 500;
         margin-bottom: 4px;
@@ -315,7 +326,7 @@ st.markdown("""
         border: 1px solid #dadce0;
         border-radius: 6px;
         padding: 10px 12px;
-        font-size: 14px;
+        font-size: 0.9rem;
     }
     
     /* 지도 스타일 */
@@ -325,7 +336,8 @@ st.markdown("""
     
     /* 간격 조정 */
     .block-container {
-        padding-top: 1.5rem;
+        padding-top: 1.2rem;
+        padding-bottom: 0.5rem;
         max-width: 1400px;
     }
     
@@ -334,6 +346,7 @@ st.markdown("""
         border-radius: 8px;
         border: none;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        font-size: 0.9rem;
     }
     
     /* 빈 상태 메시지 */
@@ -342,12 +355,37 @@ st.markdown("""
         text-align: center; 
         padding: 20px;
         font-style: italic;
+        font-size: 0.9rem;
+    }
+    
+    /* GPT 섹션 하위 요소들 */
+    .stMarkdown h3 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #202124;
+        margin: 1.5rem 0 1rem 0;
+    }
+    
+    .stMarkdown p {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #3c4043;
+    }
+    
+    /* 전체 여백 최소화 */
+    .main .block-container {
+        padding-bottom: 1rem;
+    }
+    
+    /* 컬럼 간격 최적화 */
+    .row-widget {
+        margin-bottom: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더 (긴 라인 적용)
+# ✅ 헤더 (화면 전체 너비 라인)
 # ──────────────────────────────
 st.markdown('''
 <div class="main-title">📍 청풍로드</div>
@@ -355,12 +393,12 @@ st.markdown('''
 ''', unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 메인 레이아웃 (3컬럼으로 변경)
+# ✅ 메인 레이아웃 (3컬럼)
 # ──────────────────────────────
 col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 
 # ------------------------------
-# ✅ [좌] 경로 설정 (카드 안에 모든 요소 포함)
+# ✅ [좌] 경로 설정
 # ------------------------------
 with col1:
     st.markdown('<div class="control-card">', unsafe_allow_html=True)
@@ -389,7 +427,7 @@ if clear_clicked:
     st.rerun()
 
 # ------------------------------
-# ✅ [중간] 통합 정보 카드 (방문순서 + 메트릭)
+# ✅ [중간] 통합 정보 카드
 # ------------------------------
 with col2:
     st.markdown('<div class="info-card">', unsafe_allow_html=True)
@@ -429,7 +467,7 @@ with col2:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
-# ✅ [우] 지도 (카드 안에 완전히 포함)
+# ✅ [우] 지도 (공백 제거)
 # ------------------------------
 with col3:
     st.markdown('<div class="map-card">', unsafe_allow_html=True)
@@ -578,10 +616,10 @@ with col3:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # OpenAI 클라이언트 초기화
-client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")
+client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYhUsCIw3O1a2I6txAACdi673MitM1UA4")
 
 # ------------------------------
-# ✅ GPT 가이드 (카드 제거하고 깔끔하게)
+# ✅ GPT 가이드 (카드 제거, 깔끔하게)
 # ------------------------------
 st.markdown('<div class="gpt-title">🏛️ AI 관광 가이드</div>', unsafe_allow_html=True)
 

@@ -125,7 +125,7 @@ with col1:
     # ✅ 키 지정해서 초기화 가능하게 만들기
     mode = st.radio("이동 모드", ["driving", "walking"], horizontal=True, key="mode_key")
     start = st.selectbox("출발지", gdf["name"].dropna().unique(), key="start_key")
-    wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != st.session_state["start_key"]], key="wps_key")
+    wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != st.session_state.get("start_key", "")], key="wps_key")
 
     create_clicked = st.button("✅ 경로 생성")
     clear_clicked = st.button("🚫 초기화")  # 초기화 버튼 유지
@@ -138,7 +138,7 @@ with col1:
 if clear_clicked:
     # 상태값 초기화
     for k in ["segments", "order", "duration", "distance", "auto_gpt_input"]:
-        st.session_state.pop(k, None)
+        st.session_state[k] = DEFAULTS.get(k, [] if k in ["segments", "order"] else 0.0)
 
     # 위젯 값도 초기화
     for widget_key in ["mode_key", "start_key", "wps_key"]:
@@ -153,8 +153,9 @@ if clear_clicked:
 with col2:
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.subheader("🔢 방문 순서")
-    if st.session_state["order"]:
-        for i, name in enumerate(st.session_state["order"], 1):
+    current_order = st.session_state.get("order", [])
+    if current_order:
+        for i, name in enumerate(current_order, 1):
             st.markdown(f"<p style='margin:4px 0;'><strong>{i}.</strong> {name}</p>", unsafe_allow_html=True)
     else:
         st.markdown("<span style='color:#aaa'>경로 생성 후 표시됩니다.</span>", unsafe_allow_html=True)
@@ -166,12 +167,12 @@ with col2:
 with col3:
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align:center;'>⏱️ 예상 소요 시간</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align:center; margin-top:8px;'>{st.session_state['duration']:.1f} 분</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align:center; margin-top:8px;'>{st.session_state.get('duration', 0.0):.1f} 분</h2>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align:center;'>📏 예상 이동 거리</h4>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='text-align:center; margin-top:8px;'>{st.session_state['distance']:.2f} km</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='text-align:center; margin-top:8px;'>{st.session_state.get('distance', 0.0):.2f} km</h2>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------
@@ -185,7 +186,11 @@ with col4:
 
     @st.cache_data
     def load_graph(lat, lon):
-        return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
+        try:
+            return ox.graph_from_point((lat, lon), dist=3000, network_type="all")
+        except:
+            # 백업 그래프 로딩
+            return ox.graph_from_point((36.64, 127.48), dist=3000, network_type="all")
     
     G = load_graph(clat, clon)
     edges = ox.graph_to_gdfs(G, nodes=False)
@@ -194,47 +199,60 @@ with col4:
     snapped = []
     
     # 각 지점을 도로 네트워크에 스냅핑 (개선된 방식)
-    for nm in stops:
-        r = gdf[gdf["name"] == nm].iloc[0]
-        pt = Point(r.lon, r.lat)
-        edges["d"] = edges.geometry.distance(pt)
-        ln = edges.loc[edges["d"].idxmin()]
-        sp = ln.geometry.interpolate(ln.geometry.project(pt))
-        snapped.append((sp.x, sp.y))
+    try:
+        for nm in stops:
+            r = gdf[gdf["name"] == nm].iloc[0]
+            pt = Point(r.lon, r.lat)
+            edges["d"] = edges.geometry.distance(pt)
+            ln = edges.loc[edges["d"].idxmin()]
+            sp = ln.geometry.interpolate(ln.geometry.project(pt))
+            snapped.append((sp.x, sp.y))
+    except Exception as e:
+        st.error(f"지점 스냅핑 중 오류: {str(e)}")
+        # 원본 좌표 사용
+        for nm in stops:
+            r = gdf[gdf["name"] == nm].iloc[0]
+            snapped.append((r.lon, r.lat))
 
     # 경로 생성
     if create_clicked and len(snapped) >= 2:
-        segs, td, tl = [], 0.0, 0.0
-        for i in range(len(snapped) - 1):
-            x1, y1 = snapped[i]
-            x2, y2 = snapped[i + 1]
-            coord = f"{x1},{y1};{x2},{y2}"
+        try:
+            segs, td, tl = [], 0.0, 0.0
+            for i in range(len(snapped) - 1):
+                x1, y1 = snapped[i]
+                x2, y2 = snapped[i + 1]
+                coord = f"{x1},{y1};{x2},{y2}"
+                
+                if mode == "walking":
+                    url, key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}", "routes"
+                    params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
+                else:
+                    url, key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}", "trips"
+                    params = {
+                        "geometries": "geojson", "overview": "full",
+                        "source": "first", "destination": "last", "roundtrip": "false",
+                        "access_token": MAPBOX_TOKEN
+                    }
+                
+                r = requests.get(url, params=params)
+                data_resp = r.json() if r.status_code == 200 else {}
+                
+                if data_resp.get(key):
+                    leg = data_resp[key][0]
+                    segs.append(leg["geometry"]["coordinates"])
+                    td += leg.get("duration", 0)
+                    tl += leg.get("distance", 0)
             
-            if mode == "walking":
-                url, key = f"https://api.mapbox.com/directions/v5/mapbox/{mode}/{coord}", "routes"
-                params = {"geometries": "geojson", "overview": "full", "access_token": MAPBOX_TOKEN}
+            if segs:
+                st.session_state["order"] = stops
+                st.session_state["duration"] = td / 60
+                st.session_state["distance"] = tl / 1000
+                st.session_state["segments"] = segs
+                st.success("✅ 경로가 성공적으로 생성되었습니다!")
             else:
-                url, key = f"https://api.mapbox.com/optimized-trips/v1/mapbox/{mode}/{coord}", "trips"
-                params = {
-                    "geometries": "geojson", "overview": "full",
-                    "source": "first", "destination": "last", "roundtrip": "false",
-                    "access_token": MAPBOX_TOKEN
-                }
-            
-            r = requests.get(url, params=params)
-            data_resp = r.json() if r.status_code == 200 else {}
-            
-            if data_resp.get(key):
-                leg = data_resp[key][0]
-                segs.append(leg["geometry"]["coordinates"])
-                td += leg["duration"]
-                tl += leg["distance"]
-        
-        if segs:
-            st.session_state.order = stops
-            st.session_state.duration = td / 60
-            st.session_state.distance = tl / 1000
-            st.session_state.segments = segs
+                st.warning("⚠️ 경로 생성에 실패했습니다.")
+        except Exception as e:
+            st.error(f"경로 생성 중 오류: {str(e)}")
 
     # 지도 렌더링 (개선된 스타일)
     st.markdown("<div class='card' style='padding:8px;'>", unsafe_allow_html=True)
@@ -252,9 +270,14 @@ with col4:
                       popup=folium.Popup(row.name, max_width=200),
                       icon=folium.Icon(color="gray")).add_to(mc)
     
-    # 경로 지점들 마커 (번호 순서대로)
+    # 경로 지점들 마커 (번호 순서대로) - 안전한 접근
+    current_order = st.session_state.get("order", stops)
     for idx, (x, y) in enumerate(snapped, 1):
-        place_name = st.session_state.get("order", stops)[idx - 1]
+        if idx <= len(current_order):
+            place_name = current_order[idx - 1]
+        else:
+            place_name = f"지점 {idx}"
+            
         folium.Marker([y, x],
                       icon=folium.Icon(color="red", icon="flag"),
                       tooltip=f"{idx}. {place_name}",
@@ -262,10 +285,11 @@ with col4:
         ).add_to(m)
     
     # 경로 라인 그리기 (개선된 스타일)
-    if "segments" in st.session_state:
+    if st.session_state.get("segments"):
         palette = ["#FF5252", "#FFEA00", "#69F0AE", "#40C4FF", "#E040FB", "#FF8F00"]
-        for i in range(len(st.session_state.segments), 0, -1):
-            seg = st.session_state.segments[i - 1]
+        segments = st.session_state["segments"]
+        for i in range(len(segments), 0, -1):
+            seg = segments[i - 1]
             folium.PolyLine([(pt[1], pt[0]) for pt in seg],
                             color=palette[(i - 1) % len(palette)], 
                             weight=6, 
@@ -273,18 +297,24 @@ with col4:
             ).add_to(m)
             
             # 구간 번호 표시
-            mid = seg[len(seg) // 2]
-            folium.map.Marker([mid[1], mid[0]],
-                icon=DivIcon(html=f"<div style='background:{palette[(i - 1) % len(palette)]};"
-                                  "color:#fff;border-radius:50%;width:28px;height:28px;"
-                                  "line-height:28px;text-align:center;font-weight:600;'>"
-                                  f"{i}</div>")
-            ).add_to(m)
+            if seg:  # 빈 세그먼트 체크
+                mid = seg[len(seg) // 2]
+                folium.map.Marker([mid[1], mid[0]],
+                    icon=DivIcon(html=f"<div style='background:{palette[(i - 1) % len(palette)]};"
+                                      "color:#fff;border-radius:50%;width:28px;height:28px;"
+                                      "line-height:28px;text-align:center;font-weight:600;'>"
+                                      f"{i}</div>")
+                ).add_to(m)
         
         # 경로에 맞게 지도 범위 조정
-        pts = [pt for seg in st.session_state.segments for pt in seg]
-        m.fit_bounds([[min(p[1] for p in pts), min(p[0] for p in pts)],
-                      [max(p[1] for p in pts), max(p[0] for p in pts)]])
+        try:
+            pts = [pt for seg in segments for pt in seg if seg]
+            if pts:
+                m.fit_bounds([[min(p[1] for p in pts), min(p[0] for p in pts)],
+                              [max(p[1] for p in pts), max(p[0] for p in pts)]])
+        except:
+            m.location = [clat, clon]
+            m.zoom_start = 12
     else:
         m.location = [clat, clon]
         m.zoom_start = 12
@@ -322,11 +352,12 @@ with st.form("chat_form"):
 
 # 폼 제출되었을 때 GPT 호출
 if submitted and user_input:
-    if st.session_state["order"]:
+    current_order = st.session_state.get("order", [])
+    if current_order:
         st.markdown("## ✨ 관광지별 소개 + 카페 추천")
 
         # 최대 3개까지만 처리
-        for place in st.session_state["order"][:3]:
+        for place in current_order[:3]:
             matched = data[data['t_name'].str.contains(place, na=False)]
 
             # GPT 간략 소개 with 예외 처리

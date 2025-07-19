@@ -75,7 +75,7 @@ for k, v in DEFAULTS.items():
         st.session_state[k] = v
 
 # ──────────────────────────────
-# ✅ 페이지 설정 & 확실한 카드 스타일
+# ✅ 페이지 설정 & 카드 컨테이너 스타일
 # ──────────────────────────────
 st.set_page_config(
     page_title="청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼", 
@@ -138,6 +138,22 @@ st.markdown("""
         border-radius: 2px;
     }
     
+    /* 카드 컨테이너 - 강제로 모든 요소를 감싸기 */
+    .card-container {
+        background: white;
+        border: 1px solid #e1e4e8;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .card-container:hover {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+    
     /* 섹션 제목 */
     .section-title {
         font-size: 1.4rem;
@@ -149,6 +165,19 @@ st.markdown("""
         gap: 10px;
         padding-bottom: 12px;
         border-bottom: 2px solid #f1f3f4;
+    }
+    
+    /* 강제로 Streamlit 요소들을 카드 안에 포함 */
+    .card-container .stRadio,
+    .card-container .stSelectbox,
+    .card-container .stMultiSelect,
+    .card-container .stButton,
+    .card-container .element-container,
+    .card-container div[data-testid="stVerticalBlock"],
+    .card-container div[data-testid="column"] {
+        position: relative;
+        z-index: 2;
+        background: transparent !important;
     }
     
     /* 버튼 스타일 */
@@ -385,16 +414,14 @@ st.markdown('''
 col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 
 # ------------------------------
-# ✅ [좌] 경로 설정 카드 - HTML로 완전히 감싸기
+# ✅ [좌] 경로 설정 카드 - 컨테이너로 완전히 감싸기
 # ------------------------------
 with col1:
-    st.markdown('''
-    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-        <div class="section-title">🚗 경로 설정</div>
-    </div>
-    ''', unsafe_allow_html=True)
+    # 카드 시작
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🚗 경로 설정</div>', unsafe_allow_html=True)
     
-    # HTML 카드 내부에 Streamlit 요소들 배치
+    # Streamlit 요소들
     mode = st.radio("이동 모드", ["driving", "walking"], horizontal=True, key="mode_key")
     start = st.selectbox("출발지", gdf["name"].dropna().unique(), key="start_key")
     wps = st.multiselect("경유지", [n for n in gdf["name"].dropna().unique() if n != st.session_state.get("start_key", "")], key="wps_key")
@@ -404,6 +431,9 @@ with col1:
         create_clicked = st.button("✅ 경로 생성")
     with col_btn2:
         clear_clicked = st.button("🚫 초기화")
+    
+    # 카드 끝
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ------------------------------
 # ✅ 초기화 처리
@@ -416,7 +446,7 @@ if clear_clicked:
     st.rerun()
 
 # ------------------------------
-# ✅ [중간] 방문순서 + 메트릭 카드 - HTML로 완전히 감싸기
+# ✅ [중간] 방문순서 + 메트릭 카드 - HTML로 완전 생성
 # ------------------------------
 with col2:
     current_order = st.session_state.get("order", [])
@@ -450,7 +480,7 @@ with col2:
     
     # 전체 카드 HTML
     st.markdown(f'''
-    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+    <div class="card-container">
         <div class="section-title">🔢 방문 순서</div>
         {order_html}
         {metrics_html}
@@ -458,14 +488,12 @@ with col2:
     ''', unsafe_allow_html=True)
 
 # ------------------------------
-# ✅ [우] 지도 카드 - HTML로 완전히 감싸기
+# ✅ [우] 지도 카드 - 컨테이너로 완전히 감싸기
 # ------------------------------
 with col3:
-    st.markdown('''
-    <div style="background: white; border: 1px solid #e1e4e8; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-        <div class="section-title">🗺️ 경로 지도</div>
-    </div>
-    ''', unsafe_allow_html=True)
+    # 카드 시작
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🗺️ 경로 지도</div>', unsafe_allow_html=True)
     
     # 지도 설정
     ctr = boundary.geometry.centroid
@@ -610,6 +638,9 @@ with col3:
     
     folium.LayerControl().add_to(m)
     st_folium(m, width="100%", height=520, returned_objects=[])
+    
+    # 카드 끝
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # OpenAI 클라이언트 초기화
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")

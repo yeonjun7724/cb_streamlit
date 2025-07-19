@@ -377,11 +377,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# ✅ 헤더 (로고 image.png 추가)
+# ✅ 헤더 (GitHub에서 로고 이미지 로드)
 # ──────────────────────────────
 st.markdown('''
 <div class="header-container">
-    <img src="./image.png" alt="청풍로드 로고" class="logo-image">
+    <img src="https://raw.githubusercontent.com/your-username/your-repository/main/image.png" alt="청풍로드 로고" class="logo-image">
     <div class="main-title">청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼</div>
 </div>
 <div class="title-underline"></div>
@@ -621,9 +621,9 @@ with col3:
 client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4")
 
 # ------------------------------
-# ✅ GPT 가이드 - 완전히 교체된 코드
+# ✅ GPT 가이드
 # ------------------------------
-####### 현재 GPT 가이드는 토큰 제한으로 인해 출발지 포함 3개까지만 관광지를 호출할 수 있습니다 ######
+# 현재 GPT 가이드는 토큰 제한으로 인해 출발지 포함 3개까지만 관광지를 호출할 수 있습니다
 
 # GPT 가이드 UI
 st.markdown("---")
@@ -691,7 +691,7 @@ if submitted and user_input:
                     "지도를 활용해 천천히 걸어보시는 것도 추천드립니다 😊"
                 )
 
-            # ✅ 반복문 안에서 출력
+            # 반복문 안에서 출력
             response_lines = []
             response_lines.append("---")
             response_lines.append(f"🏛️ **{place}**")
@@ -708,4 +708,3 @@ if submitted and user_input:
                     response_lines.append(f"- {r.strip('""')}")
 
             st.markdown("\n\n".join(response_lines))
-🔧 주요 수정사항 요약:

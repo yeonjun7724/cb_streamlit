@@ -409,15 +409,38 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    /* 디버그 정보 스타일 */
-    .debug-info {
+    /* 🔧 3) 초기 지도 로딩 시 흰색 배경 숨기기 */
+    .stSpinner {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+    }
+    
+    /* Folium 지도 초기 로딩 스타일 */
+    .map-container {
+        min-height: 520px;
         background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 16px;
-        margin: 16px 0;
-        font-family: monospace;
-        font-size: 0.85rem;
+        border-radius: 12px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .map-container::before {
+        content: "🗺️ 지도를 불러오는 중...";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #6b7280;
+        font-size: 1rem;
+        z-index: 1;
+    }
+    
+    .map-container iframe {
+        position: relative;
+        z-index: 2;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -691,10 +714,14 @@ with col3:
                                   popup=folium.Popup(f"<b>{idx}. {place_name}</b>", max_width=200)
                     ).add_to(m)
                 
-                # 경로 라인 + 구간 번호
+                # 🔧 1) 경로 라인 + 구간 번호 (겹침 방지 개선)
                 if st.session_state.get("segments"):
                     palette = ["#4285f4", "#34a853", "#ea4335", "#fbbc04", "#9c27b0", "#ff9800"]
                     segments = st.session_state["segments"]
+                    
+                    # 사용된 좌표들을 추적하여 겹침 방지
+                    used_positions = []
+                    min_distance = 0.001  # 최소 거리 (약 100m)
                     
                     for i, seg in enumerate(segments):
                         if seg:
@@ -704,14 +731,29 @@ with col3:
                                             opacity=0.8
                              ).add_to(m)
 
+                            # 중점 계산
                             mid = seg[len(seg) // 2]
-                            folium.map.Marker([mid[1], mid[0]],
+                            candidate_pos = [mid[1], mid[0]]
+                            
+                            # 기존 마커들과의 거리 확인하여 겹침 방지
+                            while any(abs(candidate_pos[0] - used[0]) < min_distance and 
+                                     abs(candidate_pos[1] - used[1]) < min_distance 
+                                     for used in used_positions):
+                                # 겹치면 약간의 오프셋 추가
+                                candidate_pos[0] += min_distance * 0.5
+                                candidate_pos[1] += min_distance * 0.5
+                            
+                            # 최종 위치에 라벨 마커 추가
+                            folium.map.Marker(candidate_pos,
                                 icon=DivIcon(html=f"<div style='background:{palette[i % len(palette)]};"
                                                   "color:#fff;border-radius:50%;width:28px;height:28px;"
                                                   "line-height:28px;text-align:center;font-weight:600;"
                                                   "box-shadow:0 2px 4px rgba(0,0,0,0.3);'>"
                                                   f"{i+1}</div>")
                             ).add_to(m)
+                            
+                            # 사용된 위치 저장
+                            used_positions.append(candidate_pos)
                     
                     try:
                         pts = [pt for seg in segments for pt in seg if seg]
@@ -733,21 +775,7 @@ with col3:
             except Exception as map_error:
                 st.error(f"❌ 지도 렌더링 오류: {str(map_error)}")
 
-# 디버깅 정보 표시 (개발용)
-if st.checkbox("🔍 디버깅 정보 표시"):
-    st.markdown('<div class="debug-info">', unsafe_allow_html=True)
-    st.write("**데이터 상태:**")
-    st.write(f"- GDF 행 수: {len(gdf) if gdf is not None else 0}")
-    st.write(f"- 선택된 출발지: {start}")
-    st.write(f"- 선택된 경유지: {wps}")
-    st.write(f"- 스냅된 좌표 수: {len(snapped)}")
-    st.write(f"- Session state order: {st.session_state.get('order', [])}")
-    
-    if snapped:
-        st.write("**스냅된 좌표:**")
-        for i, (x, y) in enumerate(snapped):
-            st.write(f"  {i+1}. ({x:.6f}, {y:.6f})")
-    st.markdown('</div>', unsafe_allow_html=True)
+# 🔧 2) 디버깅 정보 제거
 
 # OpenAI 클라이언트 초기화
 try:

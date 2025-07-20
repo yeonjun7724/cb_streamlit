@@ -321,10 +321,12 @@ st.markdown("""
         margin: 16px 0;
     }
     
-    /* 🔧 지도 컨테이너 스타일 완전 수정 */
+    /* 🔧 지도 컨테이너 스타일 완전 수정 - 오버플로우 완전 차단 */
     .map-container {
         width: 100% !important;
         height: 520px !important;
+        max-width: 100% !important;
+        max-height: 520px !important;
         border-radius: 12px !important;
         overflow: hidden !important;
         position: relative !important;
@@ -333,49 +335,68 @@ st.markdown("""
         margin: 0 !important;
         padding: 0 !important;
         box-sizing: border-box !important;
+        contain: layout size style !important;
     }
     
     .map-container iframe {
         width: 100% !important;
         height: 100% !important;
+        max-width: 100% !important;
+        max-height: 520px !important;
         border: none !important;
         border-radius: 12px !important;
         position: relative !important;
         z-index: 2 !important;
+        box-sizing: border-box !important;
     }
     
-    /* Streamlit Folium 컨테이너 강제 고정 */
+    /* Streamlit Folium 컨테이너 강제 고정 - 완전 격리 */
     .stContainer .map-container,
     .stContainer div[data-testid="stIFrame"] {
         max-width: 100% !important;
         width: 100% !important;
         height: 520px !important;
+        max-height: 520px !important;
         position: relative !important;
         overflow: hidden !important;
         box-sizing: border-box !important;
+        contain: layout size !important;
     }
     
     .stContainer div[data-testid="stIFrame"] > iframe {
         width: 100% !important;
         height: 100% !important;
+        max-width: 100% !important;
+        max-height: 520px !important;
         border: none !important;
         border-radius: 12px !important;
+        box-sizing: border-box !important;
     }
     
-    /* Folium 지도 강제 크기 조정 */
+    /* Folium 지도 강제 크기 조정 - 엔진 레벨 제어 */
     .folium-map {
         width: 100% !important;
         height: 100% !important;
         max-width: 100% !important;
         max-height: 520px !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
     }
     
-    /* Leaflet 컨테이너 크기 고정 */
+    /* Leaflet 컨테이너 크기 고정 - 지도 엔진 직접 제어 */
     .leaflet-container {
         width: 100% !important;
         height: 100% !important;
         max-width: 100% !important;
         max-height: 520px !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* 모든 지도 관련 요소 완전 격리 */
+    .stContainer .map-container * {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
     }
     
     /* 로딩 메시지 스타일 */
@@ -710,7 +731,7 @@ with col3:
                 st.error(f"❌ 경로 생성 중 오류 발생: {str(e)}")
                 st.info("💡 다른 출발지나 경유지를 선택해보세요.")
 
-        # 🔧 지도 렌더링 (완전 수정)
+        # 🔧 지도 렌더링 (완벽하게 수정)
         try:
             m = folium.Map(location=[clat, clon], zoom_start=12, tiles="CartoDB Positron")
             
@@ -798,10 +819,10 @@ with col3:
             
             folium.LayerControl().add_to(m)
             
-            # 🔧 지도 컨테이너 구조 완전 수정
+            # 🔧 지도 컨테이너 구조 완전 수정 - 오버플로우 완전 차단
             st.markdown('<div class="map-container">', unsafe_allow_html=True)
             
-            # st_folium 호출 시 옵션 수정
+            # st_folium 호출 시 옵션 수정 - 완전 격리
             map_data = st_folium(
                 m, 
                 width="100%", 

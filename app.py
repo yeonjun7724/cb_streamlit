@@ -251,20 +251,21 @@ header[data-testid="stHeader"] {
     margin: 16px 0;
 }
 
-/* 지도 컨테이너 스타일 */
+/* 🔧 지도 컨테이너 스타일 - 박스 제거 완전 수정 */
 .map-container {
     width: 100% !important;
     height: 520px !important;
     border-radius: 12px !important;
     overflow: hidden !important;
     position: relative !important;
-    background: #f8f9fa !important;
+    background: transparent !important;
     border: 2px solid #e5e7eb !important;
     margin: 0 !important;
     padding: 0 !important;
     box-sizing: border-box !important;
 }
 
+/* Streamlit iframe 완전 초기화 */
 div[data-testid="stIFrame"] {
     width: 100% !important;
     max-width: 100% !important;
@@ -273,6 +274,10 @@ div[data-testid="stIFrame"] {
     overflow: hidden !important;
     box-sizing: border-box !important;
     border-radius: 12px !important;
+    background: transparent !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 div[data-testid="stIFrame"] > iframe {
@@ -282,6 +287,73 @@ div[data-testid="stIFrame"] > iframe {
     border-radius: 12px !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* 🚨 핵심: Streamlit 내부 빈 div들 완전 제거 */
+div[data-testid="stIFrame"] > iframe > html > body > div:empty {
+    display: none !important;
+}
+
+div[data-testid="stIFrame"] div:empty {
+    display: none !important;
+}
+
+/* 🚨 Folium 내부 빈 컨테이너 제거 */
+.folium-map div:empty {
+    display: none !important;
+}
+
+/* 🚨 Leaflet 오버레이 박스 제거 */
+.leaflet-container .leaflet-control-container div:empty {
+    display: none !important;
+}
+
+.leaflet-container > div:empty {
+    display: none !important;
+}
+
+/* 🚨 모든 빈 오버레이 박스 강제 제거 */
+div:empty:not(.leaflet-zoom-box):not(.leaflet-marker-icon):not(.leaflet-div-icon) {
+    display: none !important;
+}
+
+/* 🚨 투명하거나 흰색 배경의 빈 박스들 제거 */
+div[style*="background: white"]:empty,
+div[style*="background: #fff"]:empty,
+div[style*="background: #ffffff"]:empty,
+div[style*="background-color: white"]:empty,
+div[style*="background-color: #fff"]:empty,
+div[style*="background-color: #ffffff"]:empty {
+    display: none !important;
+}
+
+/* Folium/Leaflet 지도 자체 크기 제한 */
+.folium-map {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 520px !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+}
+
+/* Leaflet 컨테이너 크기 고정 */
+.leaflet-container {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 520px !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
 
 /* 폼 스타일 개선 */
@@ -546,9 +618,16 @@ with col3:
             st.error(f"❌ 경로 생성 중 오류 발생: {str(e)}")
             st.info("💡 다른 출발지나 경유지를 선택해보세요.")
 
-    # 지도 렌더링
+    # 🔧 지도 렌더링 - 빈 박스 제거 최적화
     try:
-        m = folium.Map(location=[clat, clon], zoom_start=12, tiles="CartoDB Positron")
+        m = folium.Map(
+            location=[clat, clon], 
+            zoom_start=12, 
+            tiles="CartoDB Positron",
+            # 🚨 추가 옵션으로 오버레이 방지
+            prefer_canvas=True,
+            control_scale=True
+        )
         
         if boundary is not None:
             folium.GeoJson(boundary, style_function=lambda f: {
@@ -625,14 +704,16 @@ with col3:
             m.location = [clat, clon]
             m.zoom_start = 12
         
-        folium.LayerControl().add_to(m)
+        # 🚨 레이어 컨트롤 제거 - 빈 박스 원인 가능성
+        # folium.LayerControl().add_to(m)
         
+        # 🔧 지도 컨테이너 - 완전 수정된 구조
         st.markdown('<div class="map-container">', unsafe_allow_html=True)
         map_data = st_folium(
             m,
             width="100%",
             height=520,
-            returned_objects=[],
+            returned_objects=[],  # 🚨 빈 객체 반환 방지
             use_container_width=True,
             key="main_map"
         )

@@ -321,10 +321,74 @@ st.markdown("""
         margin: 16px 0;
     }
     
-    /* 지도 컨테이너 스타일 */
-    .map-container iframe {
+    /* 🔧 지도 컨테이너 스타일 완전 수정 */
+    .map-container {
+        width: 100% !important;
+        height: 520px !important;
         border-radius: 12px !important;
-        border: 2px solid #e5e7eb;
+        overflow: hidden !important;
+        position: relative !important;
+        background: #f8f9fa !important;
+        border: 2px solid #e5e7eb !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+    }
+    
+    .map-container iframe {
+        width: 100% !important;
+        height: 100% !important;
+        border: none !important;
+        border-radius: 12px !important;
+        position: relative !important;
+        z-index: 2 !important;
+    }
+    
+    /* Streamlit Folium 컨테이너 강제 고정 */
+    .stContainer .map-container,
+    .stContainer div[data-testid="stIFrame"] {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: 520px !important;
+        position: relative !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+    
+    .stContainer div[data-testid="stIFrame"] > iframe {
+        width: 100% !important;
+        height: 100% !important;
+        border: none !important;
+        border-radius: 12px !important;
+    }
+    
+    /* Folium 지도 강제 크기 조정 */
+    .folium-map {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 520px !important;
+    }
+    
+    /* Leaflet 컨테이너 크기 고정 */
+    .leaflet-container {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 520px !important;
+    }
+    
+    /* 로딩 메시지 스타일 */
+    .map-container::before {
+        content: "🗺️ 지도를 불러오는 중...";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #6b7280;
+        font-size: 1rem;
+        z-index: 1;
+        display: block;
     }
     
     /* 폼 스타일 개선 */
@@ -407,40 +471,6 @@ st.markdown("""
         padding: 12px 24px;
         font-weight: 600;
         transition: all 0.3s ease;
-    }
-    
-    /* 🔧 3) 초기 지도 로딩 시 흰색 배경 숨기기 */
-    .stSpinner {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 9999;
-    }
-    
-    /* Folium 지도 초기 로딩 스타일 */
-    .map-container {
-        min-height: 520px;
-        background: #f8f9fa;
-        border-radius: 12px;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .map-container::before {
-        content: "🗺️ 지도를 불러오는 중...";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: #6b7280;
-        font-size: 1rem;
-        z-index: 1;
-    }
-    
-    .map-container iframe {
-        position: relative;
-        z-index: 2;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -680,102 +710,113 @@ with col3:
                 st.error(f"❌ 경로 생성 중 오류 발생: {str(e)}")
                 st.info("💡 다른 출발지나 경유지를 선택해보세요.")
 
-        # 지도 렌더링
-        with st.container():
-            try:
-                m = folium.Map(location=[clat, clon], zoom_start=12, tiles="CartoDB Positron")
-                
-                # 경계
-                if boundary is not None:
-                    folium.GeoJson(boundary, style_function=lambda f: {
-                        "color": "#9aa0a6", "weight": 2, "dashArray": "4,4", "fillOpacity": 0.05
-                    }).add_to(m)
-                
-                # 마커 클러스터
-                mc = MarkerCluster().add_to(m)
-                for _, row in gdf.iterrows():
-                    if not (pd.isna(row.lat) or pd.isna(row.lon)):
-                        folium.Marker([row.lat, row.lon], 
-                                      popup=folium.Popup(str(row["name"]), max_width=200),
-                                      tooltip=str(row["name"]),
-                                      icon=folium.Icon(color="gray")).add_to(mc)
-                
-                # 경로 지점들 마커
-                current_order = st.session_state.get("order", stops)
-                for idx, (x, y) in enumerate(snapped, 1):
-                    if idx <= len(current_order):
-                        place_name = current_order[idx - 1]
-                    else:
-                        place_name = f"지점 {idx}"
-                        
-                    folium.Marker([y, x],
-                                  icon=folium.Icon(color="red", icon="flag"),
-                                  tooltip=f"{idx}. {place_name}",
-                                  popup=folium.Popup(f"<b>{idx}. {place_name}</b>", max_width=200)
-                    ).add_to(m)
-                
-                # 🔧 1) 경로 라인 + 구간 번호 (겹침 방지 개선)
-                if st.session_state.get("segments"):
-                    palette = ["#4285f4", "#34a853", "#ea4335", "#fbbc04", "#9c27b0", "#ff9800"]
-                    segments = st.session_state["segments"]
-                    
-                    # 사용된 좌표들을 추적하여 겹침 방지
-                    used_positions = []
-                    min_distance = 0.001  # 최소 거리 (약 100m)
-                    
-                    for i, seg in enumerate(segments):
-                        if seg:
-                            folium.PolyLine([(pt[1], pt[0]) for pt in seg],
-                                            color=palette[i % len(palette)],
-                                            weight=5,
-                                            opacity=0.8
-                             ).add_to(m)
-
-                            # 중점 계산
-                            mid = seg[len(seg) // 2]
-                            candidate_pos = [mid[1], mid[0]]
-                            
-                            # 기존 마커들과의 거리 확인하여 겹침 방지
-                            while any(abs(candidate_pos[0] - used[0]) < min_distance and 
-                                     abs(candidate_pos[1] - used[1]) < min_distance 
-                                     for used in used_positions):
-                                # 겹치면 약간의 오프셋 추가
-                                candidate_pos[0] += min_distance * 0.5
-                                candidate_pos[1] += min_distance * 0.5
-                            
-                            # 최종 위치에 라벨 마커 추가
-                            folium.map.Marker(candidate_pos,
-                                icon=DivIcon(html=f"<div style='background:{palette[i % len(palette)]};"
-                                                  "color:#fff;border-radius:50%;width:28px;height:28px;"
-                                                  "line-height:28px;text-align:center;font-weight:600;"
-                                                  "box-shadow:0 2px 4px rgba(0,0,0,0.3);'>"
-                                                  f"{i+1}</div>")
-                            ).add_to(m)
-                            
-                            # 사용된 위치 저장
-                            used_positions.append(candidate_pos)
-                    
-                    try:
-                        pts = [pt for seg in segments for pt in seg if seg]
-                        if pts:
-                            m.fit_bounds([[min(p[1] for p in pts), min(p[0] for p in pts)],
-                                          [max(p[1] for p in pts), max(p[0] for p in pts)]])
-                    except:
-                        m.location = [clat, clon]
-                        m.zoom_start = 12
+        # 🔧 지도 렌더링 (완전 수정)
+        try:
+            m = folium.Map(location=[clat, clon], zoom_start=12, tiles="CartoDB Positron")
+            
+            # 경계
+            if boundary is not None:
+                folium.GeoJson(boundary, style_function=lambda f: {
+                    "color": "#9aa0a6", "weight": 2, "dashArray": "4,4", "fillOpacity": 0.05
+                }).add_to(m)
+            
+            # 마커 클러스터
+            mc = MarkerCluster().add_to(m)
+            for _, row in gdf.iterrows():
+                if not (pd.isna(row.lat) or pd.isna(row.lon)):
+                    folium.Marker([row.lat, row.lon], 
+                                  popup=folium.Popup(str(row["name"]), max_width=200),
+                                  tooltip=str(row["name"]),
+                                  icon=folium.Icon(color="gray")).add_to(mc)
+            
+            # 경로 지점들 마커
+            current_order = st.session_state.get("order", stops)
+            for idx, (x, y) in enumerate(snapped, 1):
+                if idx <= len(current_order):
+                    place_name = current_order[idx - 1]
                 else:
+                    place_name = f"지점 {idx}"
+                    
+                folium.Marker([y, x],
+                              icon=folium.Icon(color="red", icon="flag"),
+                              tooltip=f"{idx}. {place_name}",
+                              popup=folium.Popup(f"<b>{idx}. {place_name}</b>", max_width=200)
+                ).add_to(m)
+            
+            # 경로 라인 + 구간 번호 (겹침 방지)
+            if st.session_state.get("segments"):
+                palette = ["#4285f4", "#34a853", "#ea4335", "#fbbc04", "#9c27b0", "#ff9800"]
+                segments = st.session_state["segments"]
+                
+                # 사용된 좌표들을 추적하여 겹침 방지
+                used_positions = []
+                min_distance = 0.001  # 최소 거리 (약 100m)
+                
+                for i, seg in enumerate(segments):
+                    if seg:
+                        folium.PolyLine([(pt[1], pt[0]) for pt in seg],
+                                        color=palette[i % len(palette)],
+                                        weight=5,
+                                        opacity=0.8
+                         ).add_to(m)
+
+                        # 중점 계산
+                        mid = seg[len(seg) // 2]
+                        candidate_pos = [mid[1], mid[0]]
+                        
+                        # 기존 마커들과의 거리 확인하여 겹침 방지
+                        while any(abs(candidate_pos[0] - used[0]) < min_distance and 
+                                 abs(candidate_pos[1] - used[1]) < min_distance 
+                                 for used in used_positions):
+                            # 겹치면 약간의 오프셋 추가
+                            candidate_pos[0] += min_distance * 0.5
+                            candidate_pos[1] += min_distance * 0.5
+                        
+                        # 최종 위치에 라벨 마커 추가
+                        folium.map.Marker(candidate_pos,
+                            icon=DivIcon(html=f"<div style='background:{palette[i % len(palette)]};"
+                                              "color:#fff;border-radius:50%;width:28px;height:28px;"
+                                              "line-height:28px;text-align:center;font-weight:600;"
+                                              "box-shadow:0 2px 4px rgba(0,0,0,0.3);'>"
+                                              f"{i+1}</div>")
+                        ).add_to(m)
+                        
+                        # 사용된 위치 저장
+                        used_positions.append(candidate_pos)
+                
+                try:
+                    pts = [pt for seg in segments for pt in seg if seg]
+                    if pts:
+                        m.fit_bounds([[min(p[1] for p in pts), min(p[0] for p in pts)],
+                                      [max(p[1] for p in pts), max(p[0] for p in pts)]])
+                except:
                     m.location = [clat, clon]
                     m.zoom_start = 12
-                
-                folium.LayerControl().add_to(m)
-                st.markdown('<div class="map-container">', unsafe_allow_html=True)
-                st_folium(m, width="100%", height=520, returned_objects=[])
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-            except Exception as map_error:
-                st.error(f"❌ 지도 렌더링 오류: {str(map_error)}")
-
-# 🔧 2) 디버깅 정보 제거
+            else:
+                m.location = [clat, clon]
+                m.zoom_start = 12
+            
+            folium.LayerControl().add_to(m)
+            
+            # 🔧 지도 컨테이너 구조 완전 수정
+            st.markdown('<div class="map-container">', unsafe_allow_html=True)
+            
+            # st_folium 호출 시 옵션 수정
+            map_data = st_folium(
+                m, 
+                width="100%", 
+                height=520, 
+                returned_objects=[],
+                use_container_width=True,
+                key="main_map"
+            )
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        except Exception as map_error:
+            st.error(f"❌ 지도 렌더링 오류: {str(map_error)}")
+            # 오류 시 빈 지도 컨테이너 표시
+            st.markdown('<div class="map-container" style="display: flex; align-items: center; justify-content: center; color: #6b7280;">지도를 불러올 수 없습니다.</div>', unsafe_allow_html=True)
 
 # OpenAI 클라이언트 초기화
 try:

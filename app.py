@@ -79,7 +79,7 @@ for k, v in DEFAULTS.items():
 # ✅ 페이지 설정 & 스타일
 # ──────────────────────────────
 st.set_page_config(
-    page_title="청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼", 
+    page_title="청풍로드 - 충청북도 맞춤형 AI기반 스마트 관광 가이드", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -403,8 +403,8 @@ st.markdown('''
 <div class="header-container">
     <img src="https://raw.githubusercontent.com/JeongWon4034/cheongju/main/cheongpung_logo.png"
     alt='청풍로드 로고'
-    style ="width:100px; height:100px">
-    <div class="main-title">청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼</div>
+    style ="width:150px; height:150px">
+    <div class="main-title">청풍로드 - 충청북도 맞춤형 AI기반 스마트 관광 가이드</div>
 </div>
 <div class="title-underline"></div>
 ''', unsafe_allow_html=True)
@@ -419,13 +419,13 @@ col1, col2, col3 = st.columns([1.5, 1.2, 3], gap="large")
 # ------------------------------
 with col1:
     with st.container():
-        st.markdown('<div class="card-header">🚗 경로 설정</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">🚗추천경로 설정</div>', unsafe_allow_html=True)
         
         # 라디오 버튼을 div로 감싸서 스타일 적용
         st.markdown('<div class="route-card">', unsafe_allow_html=True)
         
         st.markdown("**이동 모드**")
-        mode = st.radio("", ["driving", "walking"], horizontal=True, key="mode_key", label_visibility="collapsed")
+        mode = st.radio("", ["운전자 모드", "도보 모드"], horizontal=True, key="mode_key", label_visibility="collapsed")
         
         st.markdown("**출발지**")
         start = st.selectbox("", gdf["name"].dropna().unique(), key="start_key", label_visibility="collapsed")
@@ -437,9 +437,9 @@ with col1:
 
         col_btn1, col_btn2 = st.columns(2, gap="small")
         with col_btn1:
-            create_clicked = st.button("✅ 경로 생성")
+            create_clicked = st.button("경로 생성")
         with col_btn2:
-            clear_clicked = st.button("🚫 초기화")
+            clear_clicked = st.button("초기화")
 
 # ------------------------------
 # ✅ 초기화 처리
@@ -456,7 +456,7 @@ if clear_clicked:
 # ------------------------------
 with col2:
     with st.container():
-        st.markdown('<div class="card-header">📍 방문 순서</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">📍여행 방문 순서</div>', unsafe_allow_html=True)
         
         current_order = st.session_state.get("order", [])
         if current_order:
@@ -480,7 +480,7 @@ with col2:
 # ------------------------------
 with col3:
     with st.container():
-        st.markdown('<div class="card-header">🗺️ 경로 지도</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">🗺️추천경로 지도시각화</div>', unsafe_allow_html=True)
         
         # 지도 설정
         ctr = boundary.geometry.centroid
@@ -638,7 +638,7 @@ client = openai.OpenAI("sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPoc
 st.markdown("---")
 
 with st.container():
-    st.markdown('<div class="card-header">🤖 AI 관광 가이드</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card-header">🤖생성형 AI기반 관광 가이드</div>', unsafe_allow_html=True)
     
     # 자동입력 버튼에 클래스 추가
     st.markdown('<div class="auto-input-btn">', unsafe_allow_html=True)
@@ -653,13 +653,13 @@ with st.container():
     # 입력 폼 구성
     with st.form("chat_form"):
         user_input = st.text_input("관광지명을 쉼표로 구분해서 입력하세요", value=st.session_state.get("auto_gpt_input", ""))
-        submitted = st.form_submit_button("🔍 관광지 정보 요청")
+        submitted = st.form_submit_button("🔍관광지 정보 요청")
 
 # GPT 결과 표시를 위한 별도 컨테이너들
 if submitted and user_input:
     if st.session_state["order"]:
         st.markdown("---")
-        st.markdown("## ✨ 관광지별 상세 정보")
+        st.markdown("## ✨관광지별 상세 정보")
 
         # 최대 3개까지만 처리
         for place in st.session_state["order"][:3]:
@@ -688,7 +688,7 @@ if submitted and user_input:
                 if not matched.empty:
                     # 평점
                     t_value = matched['t_value'].dropna().unique()
-                    score_text = f"📊 **관광지 평점**: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
+                    score_text = f"📊**관광지 평점**: ⭐ {t_value[0]}" if len(t_value) > 0 else ""
 
                     # 리뷰
                     reviews = matched['t_review'].dropna().unique()
@@ -712,15 +712,15 @@ if submitted and user_input:
                 if score_text:
                     st.markdown(score_text)
                 
-                st.markdown("#### ✨ 소개")
+                st.markdown("#### ✨소개")
                 st.markdown(gpt_intro.strip())
                 
                 if cafe_info:
-                    st.markdown("#### 🧋 주변 카페 추천")
+                    st.markdown("#### 🧋주변 카페 추천")
                     st.markdown(cafe_info.strip())
                 
                 if review_block:
-                    st.markdown("#### 💬 방문자 리뷰")
+                    st.markdown("#### 💬방문자 리뷰")
                     for review in review_block.split("\n"):
                         if review.strip():
                             st.markdown(f"- {review.strip('\"')}")

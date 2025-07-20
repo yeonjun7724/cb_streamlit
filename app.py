@@ -18,6 +18,7 @@ import os
 MAPBOX_TOKEN = "pk.eyJ1Ijoia2lteWVvbmp1biIsImEiOiJjbWM5cTV2MXkxdnJ5MmlzM3N1dDVydWwxIn0.rAH4bQmtA-MmEuFwRLx32Q" 
 openai.api_key = "sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsCIw3O1a2I6txAACdi673MitM1UA4"
 
+
 # ──────────────────────────────
 # ✅ 데이터 로드
 # ──────────────────────────────
@@ -39,9 +40,9 @@ def format_cafes(cafes_df):
     elif len(cafes_df) == 1:
         row = cafes_df.iloc[0]
         if all(x not in row["c_review"] for x in ["없음", "없읍"]):
-            return f"☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})  \n\"{row['c_review']}\""
+            return f" **{row['c_name']}** (⭐ {row['c_value']})  \n\"{row['c_review']}\""
         else:
-            return f"☕ **주변 추천 카페**\n\n- **{row['c_name']}** (⭐ {row['c_value']})"
+            return f"**{row['c_name']}** (⭐ {row['c_value']})"
 
     else:
         grouped = cafes_df.groupby(['c_name', 'c_value'])
@@ -117,8 +118,8 @@ st.markdown("""
     }
     
     .logo-image {
-        width: 80px;
-        height: 80px;
+        width: 50px;
+        height: 50px;
         object-fit: contain;
     }
     
@@ -269,7 +270,7 @@ st.markdown("""
         background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
         border: none;
         border-radius: 12px;
-        padding: 16px 12px;
+        padding: 16px 10px;
         text-align: center;
         transition: all 0.2s ease;
         box-shadow: 0 2px 4px rgba(168, 237, 234, 0.3);
@@ -288,7 +289,7 @@ st.markdown("""
     }
     
     .stMetric [data-testid="metric-container"] > div:last-child {
-        font-size: 1.4rem;
+        font-size: 0.8rem;
         font-weight: 700;
         color: #1f2937;
     }
@@ -400,7 +401,9 @@ st.markdown("""
 # ──────────────────────────────
 st.markdown('''
 <div class="header-container">
-    <img src="https://raw.githubusercontent.com/yeonjun7724/cb_streamlit/main/image.png" alt="청풍로드 로고" class="logo-image">
+    <img src="https://raw.githubusercontent.com/JeongWon4034/cheongju/main/cheongpung_logo.png"
+    alt='청풍로드 로고'
+    style ="width:100px; height:100px">
     <div class="main-title">청풍로드 - 청주시 AI기반 맞춤형 관광 플랫폼</div>
 </div>
 <div class="title-underline"></div>
@@ -469,11 +472,8 @@ with col2:
         
         # 메트릭 섹션
         st.markdown("---")
-        col_metric1, col_metric2 = st.columns(2)
-        with col_metric1:
-            st.metric("⏱️ 소요시간", f"{st.session_state.get('duration', 0.0):.1f}분")
-        with col_metric2:
-            st.metric("📏 이동거리", f"{st.session_state.get('distance', 0.0):.2f}km")
+        st.metric("⏱️ 소요시간", f"{st.session_state.get('duration', 0.0):.1f}분")
+        st.metric("📏 이동거리", f"{st.session_state.get('distance', 0.0):.2f}km")
 
 # ------------------------------
 # ✅ [우] 지도 카드
@@ -543,6 +543,7 @@ with col3:
                         segs.append(leg["geometry"]["coordinates"])
                         td += leg.get("duration", 0)
                         tl += leg.get("distance", 0)
+
                 
                 if segs:
                     st.session_state["order"] = stops
@@ -569,7 +570,8 @@ with col3:
             mc = MarkerCluster().add_to(m)
             for _, row in gdf.iterrows():
                 folium.Marker([row.lat, row.lon], 
-                              popup=folium.Popup(row.name, max_width=200),
+                              popup=folium.Popup(row["name"], max_width=200),
+                              tooltip=row["name"],
                               icon=folium.Icon(color="gray")).add_to(mc)
             
             # 경로 지점들 마커
@@ -594,10 +596,12 @@ with col3:
                 for i, seg in enumerate(segments):
                     if seg:
                         folium.PolyLine([(pt[1], pt[0]) for pt in seg],
-                                        color=palette[i % len(palette)], 
-                                        weight=5, 
+                                        color=palette[i % len(palette)],
+                                        weight=5,
                                         opacity=0.8
-                        ).add_to(m)
+                         ).add_to(m)
+
+
                         
                         mid = seg[len(seg) // 2]
                         folium.map.Marker([mid[1], mid[0]],
@@ -626,7 +630,7 @@ with col3:
             st.markdown('</div>', unsafe_allow_html=True)
 
 # OpenAI 클라이언트 초기화
-client = openai.OpenAI(api_key="sk-proj-CrnyAxHpjHnHg6wu4iuTFlMRW8yFgSaAsmk8rTKcAJrYkPocgucoojPeVZ-uARjei6wyEILHmgT3BlbkFJ2_tSjk8mGQswRVBPzltFNh7zXYrsTfOIT3mzESkqrz2vbUsSIw3O1a2I6txAACdi673MitM1UA4")
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ------------------------------
 # ✅ GPT 가이드 카드
@@ -712,7 +716,7 @@ if submitted and user_input:
                 st.markdown(gpt_intro.strip())
                 
                 if cafe_info:
-                    st.markdown("#### ☕ 주변 카페 추천")
+                    st.markdown("#### 🧋 주변 카페 추천")
                     st.markdown(cafe_info.strip())
                 
                 if review_block:
